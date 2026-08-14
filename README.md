@@ -1,4 +1,3 @@
-@"
 # MPPI Control: Learning, Implementation, and Experiments
 
 A from-scratch implementation and experimental study of Model Predictive Path Integral (MPPI) control.
@@ -17,4 +16,3 @@ A from-scratch implementation and experimental study of Model Predictive Path In
 - Integrate MPPI with MuJoCo
 - Study controller hyperparameters and runtime
 - Reproduce experiments across multiple seeds
-"@ | Set-Content README.md
