@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mppi-control"
+version = "0.1.0"
+description = "A from-scratch implementation and experimental study of Model Predictive Path Integral control."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "gymnasium[mujoco]>=1.1",
+    "matplotlib>=3.10",
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "PyYAML>=6.0",
+    "scipy>=1.15",
+    "seaborn>=0.13",
+    "torch>=2.7",
+    "tqdm>=4.67",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = [
+    "--strict-config",
+    "--strict-markers",
+    "-ra",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["mppi_control"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
