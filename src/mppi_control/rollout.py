@@ -1,3 +1,6 @@
+import torch
+
+
 def rollout_costs(
     initial_state,
     action_sequences,

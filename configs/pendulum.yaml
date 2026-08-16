@@ -1,0 +1,31 @@
+seed: 7
+device: cpu
+
+environment:
+  id: Pendulum-v1
+  render_mode: human
+  episodes: 1
+
+model:
+  gravity: 10.0
+  mass: 1.0
+  length: 1.0
+  dt: 0.05
+  max_torque: 2.0
+  max_speed: 8.0
+
+cost:
+  angle_weight: 1.0
+  velocity_weight: 0.1
+  action_weight: 0.001
+  terminal_weight: 0.0
+
+baseline:
+  kp: 2.0
+  kd: 0.5
+
+mppi:
+  horizon: 40
+  num_samples: 1024
+  temperature: 1.0
+  noise_sigma: 1.0
