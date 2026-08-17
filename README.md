@@ -10,6 +10,8 @@ Integral (MPPI) control. The current working experiment controls Gymnasium's
   are implemented.
 - The Pendulum runner supports rendering, repeatable multi-seed experiments,
   CPU/CUDA selection, YAML configuration, and command-line overrides.
+- A reproducible MP4 showcase and an animated README preview are
+  included under `assets/`.
 - The PD baseline, smoke test, evaluation script, and some test files are still
   placeholders.
 - MountainCarContinuous, InvertedPendulum, and Reacher are planned future
@@ -58,7 +60,11 @@ trajectory costs            (num_samples,)
 MPPI-implementation-experiments/
 |-- configs/
 |   `-- pendulum.yaml
+|-- assets/
+|   |-- pendulum_mppi_showcase.gif
+|   `-- pendulum_mppi_showcase.mp4
 |-- scripts/
+|   |-- record_pendulum.py
 |   |-- run_pendulum.py
 |   `-- smoke_test.py
 |-- src/mppi_control/
@@ -89,6 +95,7 @@ MPPI-implementation-experiments/
 | --- | --- |
 | `configs/pendulum.yaml` | Default environment, model, cost, and MPPI hyperparameters. |
 | `scripts/run_pendulum.py` | Loads YAML, applies CLI overrides, creates Gymnasium and MPPI objects, runs episodes, and prints metrics. |
+| `scripts/record_pendulum.py` | Runs one reproducible RGB-rendered episode and writes both an MP4 and a compact animated GIF preview. |
 | `scripts/smoke_test.py` | Reserved for a minimal Gymnasium installation/API check; currently a placeholder. |
 
 ### Source package
@@ -179,6 +186,41 @@ Display every command-line option:
 Command-line values for `--episodes`, `--seed`, `--device`, `--render`, and
 `--no-render` override the corresponding YAML values without modifying the
 configuration file.
+
+## Pendulum demonstration
+
+The preview below uses the updated MPPI configuration (`2048` samples and
+temperature `1.3`) with seed 20. The pendulum starts about `1.382 rad` (`79.2
+degrees`) from upright, so the recording demonstrates recovery rather than an
+already-solved initial state. It finishes at approximately `0.000 rad` with a
+return of `-120.446`.
+
+The MP4 plays at 20 FPS to match the model's `0.05 s` timestep and includes
+short initial and final holds, producing a roughly 14-second demonstration.
+Click the preview to open the full MP4.
+
+[![MPPI controlling Pendulum-v1](assets/pendulum_mppi_showcase.gif)](assets/pendulum_mppi_showcase.mp4)
+
+[Download or open the full Pendulum MP4](assets/pendulum_mppi_showcase.mp4)
+
+Regenerate both files after changing the controller or hyperparameters. The
+recording script defaults to the documented seed 20 and showcase paths:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\record_pendulum.py `
+    --seed 20 `
+    --output assets\pendulum_mppi_showcase.mp4 `
+    --preview assets\pendulum_mppi_showcase.gif
+```
+
+Choose another seed or output location:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\record_pendulum.py `
+    --seed 12 `
+    --output assets\pendulum_mppi_seed12.mp4 `
+    --preview assets\pendulum_mppi_seed12.gif
+```
 
 ## Reading the output
 
