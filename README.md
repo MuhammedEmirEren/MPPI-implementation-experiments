@@ -26,6 +26,9 @@ Click the preview to open the full MP4.
 
 - `Pendulum-v1` analytical dynamics, running cost, rollout, and MPPI controller
   are implemented.
+- `MountainCarContinuous-v0` now has an exact vectorized dynamics model and
+  Gymnasium parity tests; its cost, termination-aware rollout, and runner are
+  still pending.
 - The Pendulum runner supports rendering, repeatable multi-seed experiments,
   CPU/CUDA selection, YAML configuration, and command-line overrides.
 - A reproducible MP4 showcase and an animated README preview are
@@ -77,6 +80,7 @@ trajectory costs            (num_samples,)
 ```text
 MPPI-implementation-experiments/
 |-- configs/
+|   |-- mountain_car_continuous.yaml
 |   `-- pendulum.yaml
 |-- assets/
 |   |-- pendulum_mppi_showcase.gif
@@ -92,6 +96,7 @@ MPPI-implementation-experiments/
 |   |-- costs/
 |   |   `-- pendulum.py
 |   |-- dynamics/
+|   |   |-- mountain_car_continuous.py
 |   |   `-- pendulum.py
 |   |-- utils/
 |   |   `-- seeding.py
@@ -99,6 +104,7 @@ MPPI-implementation-experiments/
 |-- tests/
 |   |-- test_baseline_controller.py
 |   |-- test_mppi_controller.py
+|   |-- test_mountain_car_dynamics.py
 |   |-- test_pendulum_cost.py
 |   |-- test_pendulum_dynamics.py
 |   `-- test_rollout.py
@@ -123,6 +129,7 @@ MPPI-implementation-experiments/
 | `src/mppi_control/controllers/mppi_controller.py` | Samples perturbations, evaluates candidate plans, computes MPPI weights, updates the nominal action sequence, and returns one bounded action. |
 | `src/mppi_control/controllers/baseline_controller.py` | Reserved for a simple PD baseline; currently a placeholder and not used by the runner. |
 | `src/mppi_control/dynamics/pendulum.py` | Implements a batched analytical `PendulumDynamics.step(state, action)` that matches Gymnasium's semi-implicit Euler update. |
+| `src/mppi_control/dynamics/mountain_car_continuous.py` | Implements the batched MountainCar transition, including force/speed/position clipping and the left-wall collision rule. |
 | `src/mppi_control/costs/pendulum.py` | Implements the configurable Pendulum running and terminal costs. |
 | `src/mppi_control/rollout.py` | Rolls all candidate action sequences through the dynamics model and returns one total cost per sample. |
 | `src/mppi_control/utils/seeding.py` | Reserved for shared seeding helpers; currently a placeholder. The active runner currently seeds Python, NumPy, PyTorch, Gymnasium, and MPPI itself. |
@@ -133,6 +140,7 @@ MPPI-implementation-experiments/
 | File | Responsibility |
 | --- | --- |
 | `tests/test_mppi_controller.py` | Tests action bounds and dtype, deterministic sampling, controller reset, MPPI weights, and parameter validation. |
+| `tests/test_mountain_car_dynamics.py` | Verifies shapes, parameter validation, clipping, left-wall behavior, and one-step/multi-step equality with Gymnasium. |
 | `tests/test_pendulum_dynamics.py` | Reserved for analytical-dynamics tests; currently a placeholder. |
 | `tests/test_pendulum_cost.py` | Reserved for cost tests; currently a placeholder. |
 | `tests/test_rollout.py` | Reserved for rollout tests; currently a placeholder. |
