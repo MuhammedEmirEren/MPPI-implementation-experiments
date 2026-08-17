@@ -25,7 +25,7 @@ baseline:
   kd: 0.5
 
 mppi:
-  horizon: 40
+  horizon: 40 
   num_samples: 1024
   temperature: 1.0
   noise_sigma: 1.0
