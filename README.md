@@ -4,6 +4,24 @@ A from-scratch implementation and experimental study of Model Predictive Path
 Integral (MPPI) control. The current working experiment controls Gymnasium's
 `Pendulum-v1` with a vectorized PyTorch dynamics model and an MPPI controller.
 
+## Environment showcases
+
+### Pendulum-v1
+
+This run uses the updated MPPI configuration (`2048` samples and temperature
+`1.3`) with seed 20. The pendulum starts about `1.382 rad` (`79.2 degrees`) from
+upright, so the recording demonstrates recovery rather than an already-solved
+initial state. It finishes at approximately `0.000 rad` with a return of
+`-120.446`.
+
+The MP4 plays at 20 FPS to match the model's `0.05 s` timestep and includes
+short initial and final holds, producing a roughly 14-second demonstration.
+Click the preview to open the full MP4.
+
+[![MPPI controlling Pendulum-v1](assets/pendulum_mppi_showcase.gif)](assets/pendulum_mppi_showcase.mp4)
+
+[Download or open the full Pendulum MP4](assets/pendulum_mppi_showcase.mp4)
+
 ## Current status
 
 - `Pendulum-v1` analytical dynamics, running cost, rollout, and MPPI controller
@@ -187,21 +205,7 @@ Command-line values for `--episodes`, `--seed`, `--device`, `--render`, and
 `--no-render` override the corresponding YAML values without modifying the
 configuration file.
 
-## Pendulum demonstration
-
-The preview below uses the updated MPPI configuration (`2048` samples and
-temperature `1.3`) with seed 20. The pendulum starts about `1.382 rad` (`79.2
-degrees`) from upright, so the recording demonstrates recovery rather than an
-already-solved initial state. It finishes at approximately `0.000 rad` with a
-return of `-120.446`.
-
-The MP4 plays at 20 FPS to match the model's `0.05 s` timestep and includes
-short initial and final holds, producing a roughly 14-second demonstration.
-Click the preview to open the full MP4.
-
-[![MPPI controlling Pendulum-v1](assets/pendulum_mppi_showcase.gif)](assets/pendulum_mppi_showcase.mp4)
-
-[Download or open the full Pendulum MP4](assets/pendulum_mppi_showcase.mp4)
+### Recording the Pendulum showcase
 
 Regenerate both files after changing the controller or hyperparameters. The
 recording script defaults to the documented seed 20 and showcase paths:
