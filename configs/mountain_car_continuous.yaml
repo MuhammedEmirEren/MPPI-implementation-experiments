@@ -24,9 +24,6 @@ cost:
   terminal_wrong_direction_weight: 5.0
   success_bonus: 100.0
 
-rollout:
-  stop_on_termination: true
-  
 mppi:
   horizon: 100
   num_samples: 1024

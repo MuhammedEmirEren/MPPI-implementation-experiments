@@ -1,8 +1,9 @@
 # MPPI Control: Learning, Implementation, and Experiments
 
 A from-scratch implementation and experimental study of Model Predictive Path
-Integral (MPPI) control. The current working experiment controls Gymnasium's
-`Pendulum-v1` with a vectorized PyTorch dynamics model and an MPPI controller.
+Integral (MPPI) control. The current implementations control Gymnasium's
+`Pendulum-v1` and `MountainCarContinuous-v0` with vectorized PyTorch dynamics
+models and a shared MPPI controller.
 
 ## Environment showcases
 
@@ -22,21 +23,38 @@ Click the preview to open the full MP4.
 
 [Download or open the full Pendulum MP4](assets/pendulum_mppi_showcase.mp4)
 
+### MountainCarContinuous-v0
+
+This seed-7 run starts in the valley, builds momentum in both directions, and
+reaches the goal in 167 steps with a Gymnasium return of `94.978`. The preview
+includes short initial and final holds; click it to open the full MP4.
+
+[![MPPI controlling MountainCarContinuous-v0](assets/mountain_car_mppi_showcase.gif)](assets/mountain_car_mppi_showcase.mp4)
+
+[Download or open the full MountainCarContinuous MP4](assets/mountain_car_mppi_showcase.mp4)
+
+### InvertedPendulum-v5
+
+Showcase pending implementation of the MuJoCo environment and its MPPI model.
+
+### Reacher-v5
+
+Showcase pending implementation of the MuJoCo environment and its MPPI model.
+
 ## Current status
 
 - `Pendulum-v1` analytical dynamics, running cost, rollout, and MPPI controller
   are implemented.
 - `MountainCarContinuous-v0` now has an exact vectorized dynamics model,
-  Gymnasium parity tests, and an energy-shaped planning cost; its
-  termination-aware rollout and runner are still pending.
+  Gymnasium parity tests, an energy-shaped planning cost, and termination-aware
+  rollouts plus a complete command-line runner.
 - The Pendulum runner supports rendering, repeatable multi-seed experiments,
   CPU/CUDA selection, YAML configuration, and command-line overrides.
-- A reproducible MP4 showcase and an animated README preview are
+- Reproducible MP4 showcases and animated README previews are
   included under `assets/`.
 - The PD baseline, smoke test, evaluation script, and some test files are still
   placeholders.
-- MountainCarContinuous, InvertedPendulum, and Reacher are planned future
-  environments.
+- InvertedPendulum and Reacher are planned future environments.
 
 ## How the Pendulum experiment works
 
@@ -83,10 +101,14 @@ MPPI-implementation-experiments/
 |   |-- mountain_car_continuous.yaml
 |   `-- pendulum.yaml
 |-- assets/
+|   |-- mountain_car_mppi_showcase.gif
+|   |-- mountain_car_mppi_showcase.mp4
 |   |-- pendulum_mppi_showcase.gif
 |   `-- pendulum_mppi_showcase.mp4
 |-- scripts/
+|   |-- record_mountain_car_continuous.py
 |   |-- record_pendulum.py
+|   |-- run_mountain_car_continuous.py
 |   |-- run_pendulum.py
 |   `-- smoke_test.py
 |-- src/mppi_control/
@@ -119,7 +141,10 @@ MPPI-implementation-experiments/
 
 | File | Responsibility |
 | --- | --- |
+| `configs/mountain_car_continuous.yaml` | MountainCar environment, exact model, shaped cost, and initial MPPI hyperparameters. |
 | `configs/pendulum.yaml` | Default environment, model, cost, and MPPI hyperparameters. |
+| `scripts/record_mountain_car_continuous.py` | Records the successful MountainCar run as a full MP4 and an animated README preview. |
+| `scripts/run_mountain_car_continuous.py` | Runs MountainCar episodes and reports success, return, steps, final state, ESS, and planning time. |
 | `scripts/run_pendulum.py` | Loads YAML, applies CLI overrides, creates Gymnasium and MPPI objects, runs episodes, and prints metrics. |
 | `scripts/record_pendulum.py` | Runs one reproducible RGB-rendered episode and writes both an MP4 and a compact animated GIF preview. |
 | `scripts/smoke_test.py` | Reserved for a minimal Gymnasium installation/API check; currently a placeholder. |
@@ -134,7 +159,7 @@ MPPI-implementation-experiments/
 | `src/mppi_control/dynamics/mountain_car_continuous.py` | Implements the batched MountainCar transition, including force/speed/position clipping and the left-wall collision rule. |
 | `src/mppi_control/costs/pendulum.py` | Implements the configurable Pendulum running and terminal costs. |
 | `src/mppi_control/costs/mountain_car_continuous.py` | Implements normalized energy shaping, action effort, terminal progress/direction penalties, success bonus, and the goal predicate. |
-| `src/mppi_control/rollout.py` | Rolls all candidate action sequences through the dynamics model and returns one total cost per sample. |
+| `src/mppi_control/rollout.py` | Rolls all candidate action sequences through the dynamics model, optionally freezes naturally terminated samples, and returns one total cost per sample. |
 | `src/mppi_control/utils/seeding.py` | Reserved for shared seeding helpers; currently a placeholder. The active runner currently seeds Python, NumPy, PyTorch, Gymnasium, and MPPI itself. |
 | `__init__.py` files | Mark directories as importable Python packages and optionally expose public classes. |
 
@@ -147,7 +172,7 @@ MPPI-implementation-experiments/
 | `tests/test_mountain_car_cost.py` | Verifies energy normalization, direction-independent energy shaping, action effort, terminal success, goal detection, shapes, and parameters. |
 | `tests/test_pendulum_dynamics.py` | Reserved for analytical-dynamics tests; currently a placeholder. |
 | `tests/test_pendulum_cost.py` | Reserved for cost tests; currently a placeholder. |
-| `tests/test_rollout.py` | Reserved for rollout tests; currently a placeholder. |
+| `tests/test_rollout.py` | Verifies original fixed-horizon behavior plus cost suppression and state freezing after natural termination. |
 | `tests/test_baseline_controller.py` | Reserved for PD-controller tests; currently a placeholder. |
 | `pyproject.toml` | Defines package metadata, runtime/development dependencies, `src/` package discovery, pytest, and coverage settings. |
 | `requirements-lock.txt` | Records the exact packages from the development environment, including the CUDA-specific PyTorch build. |
@@ -236,6 +261,36 @@ Choose another seed or output location:
     --seed 12 `
     --output assets\pendulum_mppi_seed12.mp4 `
     --preview assets\pendulum_mppi_seed12.gif
+```
+
+## Running MountainCarContinuous
+
+Run one episode with rendering using the YAML defaults:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_mountain_car_continuous.py
+```
+
+Run without rendering or evaluate several fixed seeds:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_mountain_car_continuous.py --no-render
+.\.venv\Scripts\python.exe scripts\run_mountain_car_continuous.py --no-render --episodes 20 --seed 7
+```
+
+The initial seed-7 configuration reaches the goal in 167 steps:
+
+```text
+outcome=success | steps=167 | return=94.978 | position=0.4572 | velocity=0.0087
+```
+
+The runner distinguishes natural goal success from a 999-step timeout and also
+reports mean/final ESS and mean MPPI planning time per environment step.
+
+Regenerate the MountainCar showcase after controller or hyperparameter changes:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\record_mountain_car_continuous.py
 ```
 
 ## Reading the output
@@ -405,4 +460,5 @@ Run only the implemented MPPI controller tests:
 - Validate analytical dynamics against Gymnasium.
 - Study hyperparameters, sampling behavior, performance, and runtime.
 - Reproduce experiments across fixed seed sets.
-- Add MountainCarContinuous, MuJoCo InvertedPendulum, and Reacher experiments.
+- Evaluate and record MountainCarContinuous, then add MuJoCo InvertedPendulum
+  and Reacher experiments.
