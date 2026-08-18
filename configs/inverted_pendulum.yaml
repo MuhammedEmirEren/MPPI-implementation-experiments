@@ -19,9 +19,9 @@ model:
 cost:
   pole_angle_weight: 5.0
   pole_angular_velocity_weight: 1.0
-  cart_position_weight: 0.25
-  cart_velocity_weight: 0.1
-  action_weight: 0.02
+  cart_position_weight: 1.5
+  cart_velocity_weight: 0.5
+  action_weight: 0.14
 
   pole_angle_scale: 0.2
   pole_angular_velocity_scale: 2.0
@@ -33,9 +33,9 @@ cost:
   terminal_weight: 10.0
 
 mppi:
-  horizon: 40
-  num_samples: 1024
-  temperature: 1.0
-  noise_sigma: 0.8
+  horizon: 15
+  num_samples: 256
+  temperature: 3.0
+  noise_sigma: 0.3
   num_iterations: 1
   sampling_correction: true
