@@ -1,365 +1,159 @@
-# MPPI Control: Learning, Implementation, and Experiments
+# MPPI Control: Implementation and Experiments
 
-A from-scratch implementation and experimental study of Model Predictive Path
-Integral (MPPI) control. The current implementations control Gymnasium's
-`Pendulum-v1` and `MountainCarContinuous-v0` with vectorized PyTorch dynamics
-models and a shared MPPI controller.
+A from-scratch Model Predictive Path Integral (MPPI) controller for continuous
+Gymnasium environments. The project currently solves:
+
+- `Pendulum-v1` with analytical PyTorch dynamics.
+- `MountainCarContinuous-v0` with analytical PyTorch dynamics.
+- `InvertedPendulum-v5` with native batched MuJoCo rollouts.
+
+The same controller and cost-rollout pipeline is shared by all environments.
 
 ## Environment showcases
 
 ### Pendulum-v1
 
-This run uses the updated MPPI configuration (`2048` samples and temperature
-`1.3`) with seed 20. The pendulum starts about `1.382 rad` (`79.2 degrees`) from
-upright, so the recording demonstrates recovery rather than an already-solved
-initial state. It finishes at approximately `0.000 rad` with a return of
-`-120.446`.
-
-The MP4 plays at 20 FPS to match the model's `0.05 s` timestep and includes
-short initial and final holds, producing a roughly 14-second demonstration.
-Click the preview to open the full MP4.
+Seed 20 demonstrates recovery from roughly `1.382 rad` (`79.2 degrees`) and
+finishes upright with return `-120.446`.
 
 [![MPPI controlling Pendulum-v1](assets/pendulum_mppi_showcase.gif)](assets/pendulum_mppi_showcase.mp4)
 
-[Download or open the full Pendulum MP4](assets/pendulum_mppi_showcase.mp4)
+[Open the full Pendulum MP4](assets/pendulum_mppi_showcase.mp4)
 
 ### MountainCarContinuous-v0
 
-This seed-7 run starts in the valley, builds momentum in both directions, and
-reaches the goal in 167 steps with a Gymnasium return of `94.978`. The preview
-includes short initial and final holds; click it to open the full MP4.
+Seed 7 builds momentum in both directions and reaches the goal in 167 steps
+with return `94.978`.
 
 [![MPPI controlling MountainCarContinuous-v0](assets/mountain_car_mppi_showcase.gif)](assets/mountain_car_mppi_showcase.mp4)
 
-[Download or open the full MountainCarContinuous MP4](assets/mountain_car_mppi_showcase.mp4)
+[Open the full MountainCar MP4](assets/mountain_car_mppi_showcase.mp4)
 
 ### InvertedPendulum-v5
 
-Showcase pending implementation of the MuJoCo environment and its MPPI model.
+The complete seed-11 episode balances for all 1,000 steps with maximum return
+`1000`. The 44-second MP4 contains the entire episode at 25 FPS.
+
+[![MPPI controlling InvertedPendulum-v5](assets/inverted_pendulum_mppi_showcase.gif)](assets/inverted_pendulum_mppi_showcase.mp4)
+
+[Open the full InvertedPendulum MP4](assets/inverted_pendulum_mppi_showcase.mp4)
 
 ### Reacher-v5
 
-Showcase pending implementation of the MuJoCo environment and its MPPI model.
+Planned as the fourth environment.
 
-## Current status
+## How the code connects
 
-- `Pendulum-v1` analytical dynamics, running cost, rollout, and MPPI controller
-  are implemented.
-- `MountainCarContinuous-v0` now has an exact vectorized dynamics model,
-  Gymnasium parity tests, an energy-shaped planning cost, and termination-aware
-  rollouts plus a complete command-line runner.
-- The Pendulum runner supports rendering, repeatable multi-seed experiments,
-  CPU/CUDA selection, YAML configuration, and command-line overrides.
-- Reproducible MP4 showcases and animated README previews are
-  included under `assets/`.
-- The PD baseline, smoke test, evaluation script, and some test files are still
-  placeholders.
-- InvertedPendulum and Reacher are planned future environments.
-
-## How the Pendulum experiment works
-
-Gymnasium supplies the real environment. The project does not replace it with a
-custom environment. MPPI separately uses an analytical model to predict what
-would happen under many possible future action sequences.
+The runner creates one real Gymnasium environment and a separate predictive
+model for MPPI. Predictions never advance the real environment.
 
 ```mermaid
 flowchart LR
-    YAML["configs/pendulum.yaml"] --> Runner["scripts/run_pendulum.py"]
-    Env["Gymnasium Pendulum-v1"] -->|"observation [cos(theta), sin(theta), theta_dot]"| Controller["MPPIController"]
+    Config["YAML config"] --> Runner["run_*.py"]
+    Runner --> Env["Gymnasium environment"]
+    Runner --> Controller["MPPIController"]
+    Runner --> Dynamics["Dynamics model"]
+    Runner --> Cost["Cost model"]
     Controller --> Rollout["rollout_costs"]
-    Rollout --> Dynamics["PendulumDynamics.step"]
-    Rollout --> Cost["PendulumCost"]
-    Controller -->|"torque action in [-2, 2]"| Env
-    Env -->|"reward and next observation"| Runner
+    Rollout --> Dynamics
+    Rollout --> Cost
+    Controller -->|"one selected action"| Env
+    Env -->|"next observation and reward"| Controller
 ```
 
-At every environment step, the controller:
+At each real environment step:
 
-1. Samples `num_samples` noisy action sequences around its current nominal
-   sequence.
-2. Predicts every sampled trajectory for `horizon` steps.
-3. Calculates running and terminal costs for each trajectory.
-4. Converts the trajectory costs into exponential MPPI weights.
-5. Updates the nominal sequence toward the lower-cost perturbations.
-6. Applies the first action to Gymnasium and shifts the remaining plan forward.
+1. `MPPIController.act(observation)` samples `K` noisy action sequences around
+   its current nominal plan.
+2. `rollout_costs` predicts all candidates for `H` future steps.
+3. The cost model assigns running and terminal costs to every trajectory.
+4. MPPI converts costs into exponential weights:
 
-The main tensor shapes are:
+   ```text
+   weight_k = softmax(-(cost_k - minimum_cost) / temperature)
+   ```
+
+5. The nominal plan is updated toward the weighted perturbations.
+6. The controller returns its first action, shifts the plan left, and uses the
+   remainder as the next step's warm start.
+
+Inside `MPPIController.act`, the implementation is divided into small steps:
+
+| Method | Responsibility |
+| --- | --- |
+| `_sample_perturbations` | Draw Gaussian exploration noise for all `K` plans. |
+| `_build_candidates` | Add noise to the nominal plan and enforce action limits. |
+| `rollout_costs` | Ask the dynamics and cost models to score every candidate. |
+| `_sampling_cross_term` | Apply the optional MPPI importance-sampling correction. |
+| `_compute_weights` | Turn total costs into normalized exponential weights. |
+| `_update_nominal_actions` | Move the nominal plan toward low-cost perturbations. |
+| `_shift_nominal_actions` | Discard the executed action and warm-start the next step. |
+
+Important tensor shapes are:
 
 ```text
-observation                 (3,)
-environment action          (1,)
-nominal action sequence     (horizon, 1)
-sampled action sequences    (num_samples, horizon, 1)
-trajectory costs            (num_samples,)
+current observation       (state_dim,)
+candidate actions         (K, H, action_dim)
+predicted trajectories    (K, H, state_dim)
+trajectory costs          (K,)
+MPPI weights              (K,)
 ```
 
-## Project layout
+Effective sample size (ESS) summarizes weight concentration:
 
 ```text
-MPPI-implementation-experiments/
-|-- configs/
-|   |-- mountain_car_continuous.yaml
-|   `-- pendulum.yaml
-|-- assets/
-|   |-- mountain_car_mppi_showcase.gif
-|   |-- mountain_car_mppi_showcase.mp4
-|   |-- pendulum_mppi_showcase.gif
-|   `-- pendulum_mppi_showcase.mp4
-|-- scripts/
-|   |-- record_mountain_car_continuous.py
-|   |-- record_pendulum.py
-|   |-- run_mountain_car_continuous.py
-|   |-- run_pendulum.py
-|   `-- smoke_test.py
-|-- src/mppi_control/
-|   |-- controllers/
-|   |   |-- baseline_controller.py
-|   |   `-- mppi_controller.py
-|   |-- costs/
-|   |   |-- mountain_car_continuous.py
-|   |   `-- pendulum.py
-|   |-- dynamics/
-|   |   |-- mountain_car_continuous.py
-|   |   `-- pendulum.py
-|   |-- utils/
-|   |   `-- seeding.py
-|   `-- rollout.py
-|-- tests/
-|   |-- test_baseline_controller.py
-|   |-- test_mppi_controller.py
-|   |-- test_mountain_car_dynamics.py
-|   |-- test_mountain_car_cost.py
-|   |-- test_pendulum_cost.py
-|   |-- test_pendulum_dynamics.py
-|   `-- test_rollout.py
-|-- pyproject.toml
-|-- requirements-lock.txt
-`-- README.md
+ESS = 1 / sum(weights^2)
 ```
 
-### Configuration and scripts
+An ESS near `1` means one random candidate dominates. A moderate ESS means
+several good candidates contribute, usually producing smoother control.
 
-| File | Responsibility |
-| --- | --- |
-| `configs/mountain_car_continuous.yaml` | MountainCar environment, exact model, shaped cost, and initial MPPI hyperparameters. |
-| `configs/pendulum.yaml` | Default environment, model, cost, and MPPI hyperparameters. |
-| `scripts/record_mountain_car_continuous.py` | Records the successful MountainCar run as a full MP4 and an animated README preview. |
-| `scripts/run_mountain_car_continuous.py` | Runs MountainCar episodes and reports success, return, steps, final state, ESS, and planning time. |
-| `scripts/run_pendulum.py` | Loads YAML, applies CLI overrides, creates Gymnasium and MPPI objects, runs episodes, and prints metrics. |
-| `scripts/record_pendulum.py` | Runs one reproducible RGB-rendered episode and writes both an MP4 and a compact animated GIF preview. |
-| `scripts/smoke_test.py` | Reserved for a minimal Gymnasium installation/API check; currently a placeholder. |
+### Two rollout backends
 
-### Source package
+`rollout_costs` selects the backend from the dynamics object:
 
-| File | Responsibility |
-| --- | --- |
-| `src/mppi_control/controllers/mppi_controller.py` | Samples perturbations, evaluates candidate plans, computes MPPI weights, updates the nominal action sequence, and returns one bounded action. |
-| `src/mppi_control/controllers/baseline_controller.py` | Reserved for a simple PD baseline; currently a placeholder and not used by the runner. |
-| `src/mppi_control/dynamics/pendulum.py` | Implements a batched analytical `PendulumDynamics.step(state, action)` that matches Gymnasium's semi-implicit Euler update. |
-| `src/mppi_control/dynamics/mountain_car_continuous.py` | Implements the batched MountainCar transition, including force/speed/position clipping and the left-wall collision rule. |
-| `src/mppi_control/costs/pendulum.py` | Implements the configurable Pendulum running and terminal costs. |
-| `src/mppi_control/costs/mountain_car_continuous.py` | Implements normalized energy shaping, action effort, terminal progress/direction penalties, success bonus, and the goal predicate. |
-| `src/mppi_control/rollout.py` | Rolls all candidate action sequences through the dynamics model, optionally freezes naturally terminated samples, and returns one total cost per sample. |
-| `src/mppi_control/utils/seeding.py` | Reserved for shared seeding helpers; currently a placeholder. The active runner currently seeds Python, NumPy, PyTorch, Gymnasium, and MPPI itself. |
-| `__init__.py` files | Mark directories as importable Python packages and optionally expose public classes. |
+| Dynamics interface | Used by | Behavior |
+| --- | --- | --- |
+| `step(state, action)` | Pendulum, MountainCar | Python loops over the horizon while PyTorch advances all `K` candidates together. Costs are accumulated immediately, so old states need not be stored. |
+| `rollout(initial_state, actions)` | InvertedPendulum | MuJoCo simulates the full batch in native code and returns `(K, H, 4)` states before costs are evaluated. |
 
-### Tests and packaging
-
-| File | Responsibility |
-| --- | --- |
-| `tests/test_mppi_controller.py` | Tests action bounds and dtype, deterministic sampling, controller reset, MPPI weights, and parameter validation. |
-| `tests/test_mountain_car_dynamics.py` | Verifies shapes, parameter validation, clipping, left-wall behavior, and one-step/multi-step equality with Gymnasium. |
-| `tests/test_mountain_car_cost.py` | Verifies energy normalization, direction-independent energy shaping, action effort, terminal success, goal detection, shapes, and parameters. |
-| `tests/test_pendulum_dynamics.py` | Reserved for analytical-dynamics tests; currently a placeholder. |
-| `tests/test_pendulum_cost.py` | Reserved for cost tests; currently a placeholder. |
-| `tests/test_rollout.py` | Verifies original fixed-horizon behavior plus cost suppression and state freezing after natural termination. |
-| `tests/test_baseline_controller.py` | Reserved for PD-controller tests; currently a placeholder. |
-| `pyproject.toml` | Defines package metadata, runtime/development dependencies, `src/` package discovery, pytest, and coverage settings. |
-| `requirements-lock.txt` | Records the exact packages from the development environment, including the CUDA-specific PyTorch build. |
-
-## Setup
-
-The project currently targets Python 3.11 or newer. From PowerShell in the
-project root:
-
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-```
-
-The editable install makes `mppi_control` importable while allowing changes
-under `src/` to take effect without reinstalling the project.
-
-The exact `torch==...+cu...` entry in `requirements-lock.txt` may require the
-matching PyTorch CUDA package index. The normal editable install is sufficient
-for a CPU installation; follow the official PyTorch installer command when a
-specific CUDA build is required.
-
-## Running Pendulum
-
-All commands below assume PowerShell is in the project root.
-
-Run one episode with the YAML defaults. The current configuration opens a human
-rendering window:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\run_pendulum.py
-```
-
-Run without rendering:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\run_pendulum.py --no-render
-```
-
-Run 20 reproducible episodes with seeds 7 through 26:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\run_pendulum.py --no-render --episodes 20 --seed 7
-```
-
-Use CUDA, or select CUDA automatically when available:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\run_pendulum.py --device cuda
-.\.venv\Scripts\python.exe scripts\run_pendulum.py --device auto
-```
-
-Use a separate experiment configuration:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\run_pendulum.py --config configs\pendulum_experiment.yaml --no-render
-```
-
-Display every command-line option:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\run_pendulum.py --help
-```
-
-Command-line values for `--episodes`, `--seed`, `--device`, `--render`, and
-`--no-render` override the corresponding YAML values without modifying the
-configuration file.
-
-### Recording the Pendulum showcase
-
-Regenerate both files after changing the controller or hyperparameters. The
-recording script defaults to the documented seed 20 and showcase paths:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\record_pendulum.py `
-    --seed 20 `
-    --output assets\pendulum_mppi_showcase.mp4 `
-    --preview assets\pendulum_mppi_showcase.gif
-```
-
-Choose another seed or output location:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\record_pendulum.py `
-    --seed 12 `
-    --output assets\pendulum_mppi_seed12.mp4 `
-    --preview assets\pendulum_mppi_seed12.gif
-```
-
-## Running MountainCarContinuous
-
-Run one episode with rendering using the YAML defaults:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\run_mountain_car_continuous.py
-```
-
-Run without rendering or evaluate several fixed seeds:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\run_mountain_car_continuous.py --no-render
-.\.venv\Scripts\python.exe scripts\run_mountain_car_continuous.py --no-render --episodes 20 --seed 7
-```
-
-The initial seed-7 configuration reaches the goal in 167 steps:
+MuJoCo returns states *after* each action. The rollout code shifts them so
+running costs retain the same timing as the analytical path:
 
 ```text
-outcome=success | steps=167 | return=94.978 | position=0.4572 | velocity=0.0087
+running(s0, u0) + running(s1, u1) + ... + terminal(sH)
 ```
 
-The runner distinguishes natural goal success from a 999-step timeout and also
-reports mean/final ESS and mean MPPI planning time per environment step.
+This shared contract lets the controller remain independent of whether the
+physics is analytical or simulator-backed.
 
-Regenerate the MountainCar showcase after controller or hyperparameter changes:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\record_mountain_car_continuous.py
-```
-
-## Reading the output
-
-Example:
+Every cost class provides:
 
 ```text
-Episode   1/20 | seed=7 | steps=200 | return=-123.502 | final_angle=-0.053 rad | final_velocity=-0.180 rad/s | ESS=1.5
-Mean return: -164.189 | Std: 68.084
+running(state, action) -> one cost per state-action pair
+terminal(state)        -> one final cost per trajectory
 ```
 
-- `return`: sum of the 200 Gymnasium rewards. Rewards are non-positive, so a
-  value closer to zero is better. Different initial states have different
-  difficulty, so compare controllers across the same seeds.
-- `final_angle`: signed distance from upright in radians. Zero is upright.
-- `final_velocity`: final angular velocity in radians per second. Zero is
-  stationary.
-- `ESS`: effective sample size from the final MPPI update. It lies between
-  approximately 1 and `num_samples`. A very low value means only a few sampled
-  trajectories dominated that update.
-- `Std`: standard deviation of returns. It is zero for a single episode and is
-  only meaningful across multiple seeds.
+MountainCar additionally exposes `terminated(state)` for successful goal
+states. InvertedPendulum exposes `failed(state)` so falling is penalized rather
+than accidentally treated as desirable early completion.
 
-The current runner reports the final step's ESS, not an episode-wide average.
+## Environment design
 
-## Changing hyperparameters
+| Environment | Control problem | Predictive dynamics | Main cost signals |
+| --- | --- | --- | --- |
+| Pendulum | Swing up and stabilize | Analytical PyTorch equation | Upright angle, angular velocity, torque |
+| MountainCarContinuous | Build momentum to climb a hill | Analytical PyTorch equation | Energy deficit, action effort, terminal progress/direction, success bonus |
+| InvertedPendulum | Stabilize an unstable pole and center the cart | Batched MuJoCo simulation | Pole angle/velocity, cart position/velocity, force, failure penalty |
 
-Edit `configs/pendulum.yaml`, or copy it to a new file and pass the copy with
-`--config`. Keeping separate files makes experiments reproducible:
+### Pendulum-v1
 
-```powershell
-Copy-Item configs\pendulum.yaml configs\pendulum_horizon_60.yaml
-```
+The observation is `[cos(theta), sin(theta), theta_dot]` and the action is one
+bounded torque. `PendulumDynamics.step` reconstructs the signed angle and uses
+Gymnasium's equation of motion with semi-implicit Euler integration: velocity
+is updated first, then angle.
 
-Then edit `configs\pendulum_horizon_60.yaml` and run:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\run_pendulum.py --config configs\pendulum_horizon_60.yaml --no-render --episodes 20
-```
-
-### General settings
-
-| Setting | Meaning |
-| --- | --- |
-| `seed` | Base seed. Episode `i` uses `seed + i`, making repeated experiments reproducible. |
-| `device` | MPPI planning device: `cpu`, `cuda`, or `auto`. |
-| `environment.id` | Gymnasium environment ID. The current analytical model is specifically for `Pendulum-v1`. |
-| `environment.render_mode` | Use `human` for a window or `null` for no rendering. CLI render flags can override it. |
-| `environment.episodes` | Number of episodes when `--episodes` is not provided. |
-
-### Dynamics-model parameters
-
-| Setting | Current value | Meaning |
-| --- | ---: | --- |
-| `model.gravity` | `10.0` | Gravitational acceleration used by the predictive model. |
-| `model.mass` | `1.0` | Pendulum mass. |
-| `model.length` | `1.0` | Pendulum length. |
-| `model.dt` | `0.05` | Simulation timestep in seconds. |
-| `model.max_torque` | `2.0` | Torque limit used by the model. |
-| `model.max_speed` | `8.0` | Angular-speed limit used by the model. |
-
-These values match Gymnasium `Pendulum-v1`. Changing only these YAML values
-changes MPPI's internal model but does not change the real Gymnasium
-environment. That intentionally or accidentally creates model mismatch. Leave
-them unchanged while validating the standard environment.
-
-### Cost parameters
-
-The running cost is:
+The dense cost penalizes:
 
 ```text
 angle_weight * angle^2
@@ -367,98 +161,158 @@ angle_weight * angle^2
 + action_weight * torque^2
 ```
 
-| Setting | Effect of increasing it |
-| --- | --- |
-| `cost.angle_weight` | Prioritizes reaching and remaining upright. |
-| `cost.velocity_weight` | Penalizes fast motion and encourages settling. Too much can discourage the swing-up motion. |
-| `cost.action_weight` | Penalizes control effort. Too much can prevent aggressive swing-up. |
-| `cost.terminal_weight` | Places additional importance on the state at the end of the planning horizon. The current value `0.0` disables terminal cost. |
+There is no success termination; MPPI continuously improves swing-up and
+stabilization over the fixed 200-step episode.
 
-The current running weights `1.0`, `0.1`, and `0.001` match Gymnasium's reward
-definition.
+### MountainCarContinuous-v0
 
-### MPPI parameters
-
-| Setting | Effect and trade-off |
-| --- | --- |
-| `mppi.horizon` | Number of predicted control steps. Larger values see farther ahead but increase runtime approximately linearly. At `40` with `dt=0.05`, the controller plans 2 seconds ahead. |
-| `mppi.num_samples` | Number of candidate trajectories per iteration. More samples improve search coverage but increase runtime and memory approximately linearly. |
-| `mppi.temperature` | Controls how concentrated the exponential weights are. Lower values focus strongly on the best few samples; higher values spread influence over more samples and often increase ESS. |
-| `mppi.noise_sigma` | Standard deviation of sampled torque perturbations. Larger values explore more aggressively but can cause more actions to hit the torque limits. |
-| `mppi.num_iterations` | Optional number of MPPI updates per environment step. The runner uses `1` when omitted. More iterations cost proportionally more. |
-| `mppi.sampling_correction` | Optional Boolean controlling the fixed-covariance MPPI importance-sampling correction. The runner uses `true` when omitted. |
-
-The approximate planning workload per episode scales as:
+The state is `[position, velocity]` and the action is a continuous force. The
+analytical model exactly follows Gymnasium's update:
 
 ```text
-environment steps * horizon * num_samples * num_iterations
+next_velocity = velocity + power * force - gravity * cos(3 * position)
+next_position = position + next_velocity
 ```
 
-For the current configuration, that is approximately:
+It also reproduces speed/position clipping and the inelastic left wall. The
+main difficulty is that the engine is too weak to drive directly uphill, so
+the car must first move away from the goal and build mechanical energy.
+
+A simple distance cost would fight that behavior. The shaped cost therefore
+uses energy deficit during the rollout, then terminal position and direction
+terms. Reaching the goal produces a success bonus, and successful candidate
+trajectories are frozen rather than charged for nonexistent later steps.
+
+### InvertedPendulum-v5
+
+The observation is:
 
 ```text
-200 * 40 * 1024 * 1 = 8,192,000 predicted state transitions
+[cart_position, pole_angle, cart_velocity, pole_angular_velocity]
 ```
 
-Optional parameters can be added directly to the YAML:
+The action is one horizontal cart force in `[-3, 3]`. Instead of maintaining a
+second hand-derived physics model, `InvertedPendulumMujocoDynamics` shares the
+environment's read-only `MjModel` and creates independent `MjData` objects for
+its rollout workers. This preserves MuJoCo's masses, inertia, damping,
+actuator, constraints, integrator, and joint limits.
 
-```yaml
-mppi:
-  horizon: 40
-  num_samples: 1024
-  temperature: 1.0
-  noise_sigma: 1.0
-  num_iterations: 1
-  sampling_correction: true
-```
+Gymnasium applies each action for two MuJoCo steps. The backend repeats every
+candidate action twice, simulates all trajectories with a persistent native
+thread pool, and keeps every second predicted state.
 
-## A controlled tuning workflow
-
-1. Keep the same seed range for every configuration.
-2. Disable rendering while benchmarking.
-3. Change one hyperparameter at a time.
-4. Compare mean and median return, standard deviation, final state, runtime,
-   and ESS.
-5. Repeat promising settings over at least 50 to 100 seeds.
-
-For the currently observed low final-step ESS, `temperature` is the first
-parameter to investigate. Test several values with identical seeds instead of
-assuming that a higher value is automatically better. `noise_sigma`, horizon,
-and the cost weights also influence the spread of trajectory costs.
-
-Example comparison:
+Gymnasium rewards survival but provides little guidance before failure. MPPI
+uses a denser normalized cost:
 
 ```text
-configs/pendulum_temperature_1.yaml
-configs/pendulum_temperature_2.yaml
-configs/pendulum_temperature_5.yaml
+pole-angle cost
++ pole-angular-velocity cost
++ cart-position cost
++ cart-velocity cost
++ action-effort cost
++ failure penalty when abs(pole_angle) > 0.2
 ```
 
-Run each one with the same command except for `--config`:
+Pole terms protect balance, cart terms prevent rail drift, and action effort
+discourages aggressive corrections. A stronger terminal cost encourages each
+candidate to finish in a stable state. Non-finite observations are also
+treated as failures.
+
+## InvertedPendulum benchmark
+
+The tuned configuration uses horizon `15`, `380` samples, temperature `3.0`,
+noise sigma `0.15`, and four MuJoCo rollout workers.
+
+| Seed | Outcome | Return | Max angle | Cart RMS | Action RMS | Plan ms | ESS mean/final |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 7 | survived | 1000.0 | 0.0088 | 0.1677 | 0.022 | 28.58 | 48.6 / 62.5 |
+| 8 | survived | 1000.0 | 0.0101 | 0.1411 | 0.022 | 28.32 | 49.1 / 44.1 |
+| 9 | survived | 1000.0 | 0.0101 | 0.1124 | 0.022 | 28.98 | 48.3 / 48.7 |
+| 10 | survived | 1000.0 | 0.0097 | 0.1666 | 0.022 | 28.48 | 48.1 / 54.6 |
+| 11 | survived | 1000.0 | 0.0090 | 0.0810 | 0.022 | 28.45 | 48.7 / 64.7 |
+
+```text
+Survival:           5/5 (100%)
+Mean return:        1000.0
+Worst max angle:    0.0101 rad
+Mean pole RMS:      0.0034 rad
+Mean cart RMS:      0.1338
+Mean planning time: 28.56 ms/step
+```
+
+## Setup and running
+
+From PowerShell in the project root:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\run_pendulum.py --config configs\pendulum_temperature_1.yaml --no-render --episodes 20 --seed 7
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 ```
 
-## Running tests
+| Environment | Run | Record showcase | Configuration |
+| --- | --- | --- | --- |
+| Pendulum | `scripts/run_pendulum.py` | `scripts/record_pendulum.py` | `configs/pendulum.yaml` |
+| MountainCar | `scripts/run_mountain_car_continuous.py` | `scripts/record_mountain_car_continuous.py` | `configs/mountain_car_continuous.yaml` |
+| InvertedPendulum | `scripts/run_inverted_pendulum.py` | `scripts/record_inverted_pendulum.py` | `configs/inverted_pendulum.yaml` |
 
-Run all existing tests:
+Examples:
+
+```powershell
+# Render one configured episode
+.\.venv\Scripts\python.exe scripts\run_inverted_pendulum.py
+
+# Evaluate seeds 7 through 11
+.\.venv\Scripts\python.exe scripts\run_inverted_pendulum.py `
+    --no-render --episodes 5 --seed 7
+
+# Recreate the full seed-11 MP4 and GIF
+.\.venv\Scripts\python.exe scripts\record_inverted_pendulum.py
+```
+
+The other runners support the same `--config`, `--episodes`, `--seed`,
+`--device`, `--render`, and `--no-render` pattern.
+
+## Configuration and tuning
+
+Each YAML file separates environment, model, cost, and MPPI settings.
+
+| Setting | Effect |
+| --- | --- |
+| `horizon` | How far MPPI plans. Longer horizons see farther but increase runtime and search difficulty. |
+| `num_samples` | Number of candidate plans. More improves coverage but increases runtime and memory. |
+| `temperature` | Higher values spread weight over more candidates; lower values concentrate on the best few. |
+| `noise_sigma` | Exploration magnitude. Too little cannot discover corrective actions; too much creates aggressive, unlikely plans. |
+| Cost weights | Define the actual control priorities. Relative weights trade task progress, stability, centering, and effort. |
+| `terminal_weight` | Importance of the predicted state at the end of the horizon. |
+| `sampling_correction` | Enables the fixed-covariance MPPI importance-sampling correction. |
+
+Model constants should normally match Gymnasium. Changing only the predictive
+model creates model mismatch with the real environment.
+
+A controlled tuning loop is:
+
+1. Keep the same seed range.
+2. Disable rendering for timing comparisons.
+3. Change one related group at a time.
+4. Compare return/survival, state error, control effort, ESS, and planning time.
+5. Validate the selected configuration over multiple seeds.
+
+## Core files
+
+| File | Role |
+| --- | --- |
+| [`src/mppi_control/controllers/mppi_controller.py`](src/mppi_control/controllers/mppi_controller.py) | Samples perturbations, scores plans, computes MPPI weights, updates/warm-starts the nominal plan, and returns one action. |
+| [`src/mppi_control/rollout.py`](src/mppi_control/rollout.py) | Connects controller, dynamics, and cost; dispatches analytical or full-trajectory prediction and returns one cost per sample. |
+| [`src/mppi_control/dynamics/`](src/mppi_control/dynamics) | Implements environment prediction through analytical `step` methods or MuJoCo `rollout`. |
+| [`src/mppi_control/costs/`](src/mppi_control/costs) | Defines running, terminal, success, and failure objectives used for planning. |
+| [`scripts/`](scripts) | Loads YAML, runs evaluation episodes, reports metrics, and records showcases. |
+| [`configs/`](configs) | Stores reproducible environment, model, cost, and MPPI parameters. |
+
+Run the test suite with:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Run only the implemented MPPI controller tests:
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest tests\test_mppi_controller.py -v
-```
-
-## Project goals
-
-- Implement and understand MPPI from scratch.
-- Validate analytical dynamics against Gymnasium.
-- Study hyperparameters, sampling behavior, performance, and runtime.
-- Reproduce experiments across fixed seed sets.
-- Evaluate and record MountainCarContinuous, then add MuJoCo InvertedPendulum
-  and Reacher experiments.
+Reacher-v5 is the next planned environment.
