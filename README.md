@@ -6,6 +6,7 @@ Gymnasium environments. The project currently solves:
 - `Pendulum-v1` with analytical PyTorch dynamics.
 - `MountainCarContinuous-v0` with analytical PyTorch dynamics.
 - `InvertedPendulum-v5` with native batched MuJoCo rollouts.
+- `Reacher-v5` with native batched MuJoCo rollouts and vector actions.
 
 The same controller and cost-rollout pipeline is shared by all environments.
 
@@ -40,7 +41,28 @@ The complete seed-11 episode balances for all 1,000 steps with maximum return
 
 ### Reacher-v5
 
-Planned as the fourth environment.
+The same initial arm state is tested against three fixed target placements.
+The close target begins near the fingertip, the far target requires a large
+cross-workspace motion, and the upper target tests a different direction.
+Click any preview to open its full MP4.
+
+<table>
+  <tr>
+    <th>Close target</th>
+    <th>Far target</th>
+    <th>Upper target</th>
+  </tr>
+  <tr>
+    <td><a href="assets/reacher_close_target.mp4"><img src="assets/reacher_close_target.gif" alt="Reacher close target" width="260"></a></td>
+    <td><a href="assets/reacher_far_target.mp4"><img src="assets/reacher_far_target.gif" alt="Reacher far target" width="260"></a></td>
+    <td><a href="assets/reacher_upper_target.mp4"><img src="assets/reacher_upper_target.gif" alt="Reacher upper target" width="260"></a></td>
+  </tr>
+  <tr>
+    <td align="center"><code>(0.18, 0.04)</code></td>
+    <td align="center"><code>(-0.17, -0.08)</code></td>
+    <td align="center"><code>(0.03, 0.16)</code></td>
+  </tr>
+</table>
 
 ## How the code connects
 
@@ -115,7 +137,7 @@ several good candidates contribute, usually producing smoother control.
 | Dynamics interface | Used by | Behavior |
 | --- | --- | --- |
 | `step(state, action)` | Pendulum, MountainCar | Python loops over the horizon while PyTorch advances all `K` candidates together. Costs are accumulated immediately, so old states need not be stored. |
-| `rollout(initial_state, actions)` | InvertedPendulum | MuJoCo simulates the full batch in native code and returns `(K, H, 4)` states before costs are evaluated. |
+| `rollout(initial_state, actions)` | InvertedPendulum, Reacher | MuJoCo simulates the full batch in native code and returns `(K, H, state_dim)` states before costs are evaluated. |
 
 MuJoCo returns states *after* each action. The rollout code shifts them so
 running costs retain the same timing as the analytical path:
@@ -145,6 +167,7 @@ than accidentally treated as desirable early completion.
 | Pendulum | Swing up and stabilize | Analytical PyTorch equation | Upright angle, angular velocity, torque |
 | MountainCarContinuous | Build momentum to climb a hill | Analytical PyTorch equation | Energy deficit, action effort, terminal progress/direction, success bonus |
 | InvertedPendulum | Stabilize an unstable pole and center the cart | Batched MuJoCo simulation | Pole angle/velocity, cart position/velocity, force, failure penalty |
+| Reacher | Move a two-link fingertip to varying targets | Batched MuJoCo simulation | Fingertip distance, two motor torques, joint velocity, terminal distance |
 
 ### Pendulum-v1
 
@@ -218,6 +241,19 @@ discourages aggressive corrections. A stronger terminal cost encourages each
 candidate to finish in a stable state. Non-finite observations are also
 treated as failures.
 
+### Reacher-v5
+
+Reacher observes the sine and cosine of two joint angles, the target position,
+two joint velocities, and the fingertip-to-target vector. Its action contains
+two motor torques. `ReacherMujocoDynamics` converts the observation back to a
+MuJoCo state, simulates every `(K, H, 2)` candidate action sequence, then
+reconstructs all ten observation values for the cost.
+
+The running cost combines Euclidean fingertip distance, squared torque, and an
+optional joint-velocity penalty. Terminal distance encourages each short plan
+to finish near the target. Reacher has no built-in success termination, so the
+runner reports when the fingertip first enters the configured success radius.
+
 ## InvertedPendulum benchmark
 
 The tuned configuration uses horizon `15`, `380` samples, temperature `3.0`,
@@ -255,6 +291,7 @@ py -3.11 -m venv .venv
 | Pendulum | `scripts/run_pendulum.py` | `scripts/record_pendulum.py` | `configs/pendulum.yaml` |
 | MountainCar | `scripts/run_mountain_car_continuous.py` | `scripts/record_mountain_car_continuous.py` | `configs/mountain_car_continuous.yaml` |
 | InvertedPendulum | `scripts/run_inverted_pendulum.py` | `scripts/record_inverted_pendulum.py` | `configs/inverted_pendulum.yaml` |
+| Reacher | `scripts/run_reacher.py` | `scripts/record_reacher.py` | `configs/reacher.yaml` |
 
 Examples:
 
@@ -268,6 +305,9 @@ Examples:
 
 # Recreate the full seed-11 MP4 and GIF
 .\.venv\Scripts\python.exe scripts\record_inverted_pendulum.py
+
+# Recreate all three Reacher MP4 and GIF showcases
+.\.venv\Scripts\python.exe scripts\record_reacher.py
 ```
 
 The other runners support the same `--config`, `--episodes`, `--seed`,
@@ -314,5 +354,3 @@ Run the test suite with:
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 ```
-
-Reacher-v5 is the next planned environment.
