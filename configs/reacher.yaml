@@ -5,7 +5,7 @@ environment:
   id: Reacher-v5
   render_mode: human
   episodes: 1
-  max_episode_steps: 50
+  max_episode_steps: 100
 
 model:
   simulation_timestep: 0.01
@@ -14,21 +14,21 @@ model:
   max_action: 1.0
   first_link_length: 0.1
   second_link_length: 0.11
-  rollout_threads: 4
+  rollout_threads: 8
 
 cost:
-  distance_weight: 1.0
-  action_weight: 1.0
-  joint_velocity_weight: 0.0
-  terminal_distance_weight: 10.0
+  distance_weight: 6.0
+  action_weight: 0.07
+  joint_velocity_weight: 0.02
+  terminal_distance_weight: 11.0
 
 evaluation:
   success_distance: 0.01
 
 mppi:
-  horizon: 20
-  num_samples: 1024
+  horizon: 16
+  num_samples: 300
   temperature: 1.0
-  noise_sigma: 0.4
+  noise_sigma: 0.16
   num_iterations: 1
   sampling_correction: true
