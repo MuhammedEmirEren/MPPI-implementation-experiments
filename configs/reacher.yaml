@@ -1,0 +1,34 @@
+seed: 7
+device: cpu
+
+environment:
+  id: Reacher-v5
+  render_mode: human
+  episodes: 1
+  max_episode_steps: 50
+
+model:
+  simulation_timestep: 0.01
+  frame_skip: 2
+  min_action: -1.0
+  max_action: 1.0
+  first_link_length: 0.1
+  second_link_length: 0.11
+  rollout_threads: 4
+
+cost:
+  distance_weight: 1.0
+  action_weight: 1.0
+  joint_velocity_weight: 0.0
+  terminal_distance_weight: 10.0
+
+evaluation:
+  success_distance: 0.01
+
+mppi:
+  horizon: 20
+  num_samples: 1024
+  temperature: 1.0
+  noise_sigma: 0.4
+  num_iterations: 1
+  sampling_correction: true
