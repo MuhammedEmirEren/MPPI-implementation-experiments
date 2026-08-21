@@ -1,0 +1,45 @@
+id: 01_horizon_foresight
+title: Planning horizon - foresight versus search difficulty
+status: planned
+source_section: "1.1"
+
+environment:
+  id: MountainCarContinuous-v0
+  base_config: ../../configs/mountain_car_continuous.yaml
+  initial_state: [-0.5, 0.0]
+  reuse:
+    dynamics: mppi_control.dynamics.mountain_car_continuous.MountainCarContinuousDynamics
+    cost: planned terminal-foresight Mountain Car cost mode
+
+study:
+  question: Can a longer horizon make an initially undesirable leftward action useful now?
+  hypothesis: A sufficiently long horizon reveals the left-build-reverse-goal maneuver.
+  independent_variables:
+    mppi.horizon: [10, 25, 50, 75, 100, 150, 200]
+  fixed:
+    mppi.num_samples: 8192
+    mppi.temperature: 1.0
+    mppi.noise_sigma: 0.5
+    mppi.num_iterations: 1
+    mppi.sampling_correction: true
+    cost.terminal_position_weight: 20.0
+    cost.terminal_wrong_direction_weight: 5.0
+    cost.action_weight: 0.05
+    cost.success_bonus: 100.0
+    cost.energy_term: false
+  pilot_repetitions: 3
+  final_repetitions: 10
+
+metrics:
+  primary: [first_action, best_trajectory_reverses, any_candidate_reaches_goal]
+  secondary: [planning_time_ms, best_trajectory_position, best_trajectory_velocity]
+
+implementation_needs:
+  - terminal-foresight Mountain Car cost
+  - candidate trajectory and goal-hit diagnostics
+
+artifacts:
+  results: results/runs.csv
+  summary: results/summary.json
+  plots: plots/
+  media: media/

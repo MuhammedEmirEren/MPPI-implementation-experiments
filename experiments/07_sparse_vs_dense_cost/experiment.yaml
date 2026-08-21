@@ -1,0 +1,43 @@
+id: 07_sparse_vs_dense_cost
+title: Sparse versus dense cost - information for ranking samples
+status: planned
+source_section: "3.1"
+
+environment:
+  id: MountainCarContinuous-v0
+  base_config: ../../configs/mountain_car_continuous.yaml
+  initial_state: [-0.5, 0.0]
+  reuse:
+    dynamics: mppi_control.dynamics.mountain_car_continuous.MountainCarContinuousDynamics
+    dense_cost: mppi_control.costs.mountain_car_continuous.MountainCarContinuousCost
+    sparse_cost: planned sparse success-only Mountain Car cost
+
+study:
+  question: Does a dense cost provide useful ranking before any sample succeeds?
+  hypothesis: Dense cost increases informative cost spread and produces more useful momentum-building updates.
+  independent_variables:
+    cost.mode: [sparse_success, energy_shaped]
+  fixed_from_base_config:
+    - environment
+    - model
+    - mppi
+  sparse_cost:
+    action_weight: 0.05
+    success_bonus: 100.0
+  paired_perturbation_seeds: true
+  pilot_repetitions: 5
+  final_repetitions: 20
+
+metrics:
+  primary: [trajectory_cost_standard_deviation, effective_sample_size, first_action, maximum_absolute_velocity]
+  secondary: [maximum_weight, near_tied_cost_fraction, success, planning_time_ms]
+
+implementation_needs:
+  - sparse success-only Mountain Car cost
+  - shared candidate-cost and state diagnostics from Experiment 01
+
+artifacts:
+  results: results/runs.csv
+  summary: results/summary.json
+  plots: plots/
+  media: media/

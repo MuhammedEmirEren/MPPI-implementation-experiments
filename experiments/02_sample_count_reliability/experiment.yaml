@@ -1,0 +1,41 @@
+id: 02_sample_count_reliability
+title: Number of samples - reliability of the Monte-Carlo update
+status: planned
+source_section: "1.2"
+
+environment:
+  id: Pendulum-v1
+  base_config: ../../configs/pendulum.yaml
+  initial_observation: [0.0, 1.0, 0.0]
+  reuse:
+    dynamics: mppi_control.dynamics.pendulum.PendulumDynamics
+    cost: mppi_control.costs.pendulum.PendulumCost
+
+study:
+  question: What becomes more reliable as the candidate population grows?
+  hypothesis: First-action variability and reference error decrease as K increases.
+  independent_variables:
+    mppi.num_samples: [16, 32, 64, 128, 256, 512, 1024, 2048]
+  reference_num_samples: 3000
+  fixed:
+    nominal_actions: zero
+    mppi.horizon: 40
+    mppi.temperature: 1.0
+    mppi.noise_sigma: 1.0
+    mppi.num_iterations: 1
+    mppi.sampling_correction: true
+  pilot_repetitions: 5
+  final_repetitions: 30
+
+metrics:
+  primary: [first_action, first_action_std, absolute_reference_error]
+  secondary: [planning_time_ms]
+
+implementation_needs:
+  - fixed-state repeated-planning runner
+
+artifacts:
+  results: results/runs.csv
+  summary: results/summary.json
+  plots: plots/
+  media: media/

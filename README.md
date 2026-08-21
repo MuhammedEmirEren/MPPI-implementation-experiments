@@ -10,6 +10,11 @@ Gymnasium environments. The project currently solves:
 
 The same controller and cost-rollout pipeline is shared by all environments.
 
+The planned mechanism-isolation studies are organized in
+[`experiments/`](experiments/README.md). Each study reuses these environment
+models and keeps its report, configuration, raw results, plots, and optional
+animation together.
+
 ## Environment showcases
 
 ### Pendulum-v1

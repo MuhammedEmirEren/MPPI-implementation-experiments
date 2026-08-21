@@ -1,0 +1,42 @@
+id: 08_cost_scale_temperature
+title: Cost scale and temperature
+status: planned
+source_section: "3.2"
+
+environment:
+  id: Pendulum-v1
+  base_config: ../../configs/pendulum.yaml
+  reuse:
+    frozen_costs_from: ../03_temperature_weights/results/costs.npz
+
+study:
+  question: How does common cost scaling interact with temperature?
+  hypothesis: Scaling cost alone concentrates weights; scaling cost and lambda together preserves weights.
+  cases:
+    - name: original
+      cost_scale: 1.0
+      temperature_scale: 1.0
+    - name: cost_x10
+      cost_scale: 10.0
+      temperature_scale: 1.0
+    - name: cost_and_temperature_x10
+      cost_scale: 10.0
+      temperature_scale: 10.0
+  fixed:
+    candidate_cost_batch: exactly the same saved vector for all cases
+  numerical_tolerance: 1.0e-6
+  pilot_repetitions: 1
+  final_repetitions: 1
+
+metrics:
+  primary: [maximum_weight, effective_sample_size, maximum_absolute_weight_difference]
+  secondary: [weight_entropy]
+
+implementation_needs:
+  - reuse Experiment 03 frozen costs and weighting helper
+
+artifacts:
+  results: results/runs.csv
+  summary: results/summary.json
+  plots: plots/
+  media: media/

@@ -1,0 +1,29 @@
+id: NN_short_name
+title: Experiment title
+status: planned
+source_section: "N.N"
+
+environment:
+  id: Environment-vN
+  base_config: ../../configs/environment.yaml
+  reuse:
+    dynamics: mppi_control.dynamics.module.ClassName
+    cost: mppi_control.costs.module.ClassName
+
+study:
+  question: What mechanism is isolated?
+  hypothesis: State a falsifiable prediction.
+  independent_variables: {}
+  fixed: {}
+  pilot_repetitions: 3
+  final_repetitions: 20
+
+metrics:
+  primary: []
+  secondary: []
+
+artifacts:
+  results: results/runs.csv
+  summary: results/summary.json
+  plots: plots/
+  media: media/

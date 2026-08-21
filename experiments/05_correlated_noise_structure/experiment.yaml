@@ -1,0 +1,44 @@
+id: 05_correlated_noise_structure
+title: IID versus temporally correlated action noise
+status: planned
+source_section: "2.1"
+
+environment:
+  id: MountainCarContinuous-v0
+  base_config: ../../configs/mountain_car_continuous.yaml
+  initial_state: [-0.5, 0.0]
+  reuse:
+    dynamics: mppi_control.dynamics.mountain_car_continuous.MountainCarContinuousDynamics
+    cost: mppi_control.costs.mountain_car_continuous.MountainCarContinuousCost
+
+study:
+  question: How does temporal correlation change the kinds of action sequences explored?
+  hypothesis: Higher rho reduces direction changes and produces more momentum-building trajectories.
+  independent_variables:
+    mppi.noise_rho: [0.0, 0.5, 0.8, 0.95]
+  fixed_from_base_config:
+    - environment
+    - model
+    - cost
+    - mppi.horizon
+    - mppi.num_samples
+    - mppi.temperature
+    - mppi.noise_sigma
+    - mppi.num_iterations
+  paired_common_innovations: true
+  pilot_repetitions: 5
+  final_repetitions: 20
+
+metrics:
+  primary: [direction_changes, mean_action_run_length, lag_one_correlation, maximum_absolute_velocity]
+  secondary: [peak_energy, marginal_noise_standard_deviation]
+
+implementation_needs:
+  - backward-compatible AR(1) perturbation sampler
+  - candidate action and state diagnostic export
+
+artifacts:
+  results: results/runs.csv
+  summary: results/summary.json
+  plots: plots/
+  media: media/

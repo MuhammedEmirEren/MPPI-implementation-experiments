@@ -1,0 +1,46 @@
+id: 06_correlated_noise_efficiency
+title: Sampling efficiency from temporally correlated noise
+status: planned
+source_section: "2.2"
+
+environment:
+  id: MountainCarContinuous-v0
+  base_config: ../../configs/mountain_car_continuous.yaml
+  reuse:
+    dynamics: mppi_control.dynamics.mountain_car_continuous.MountainCarContinuousDynamics
+    cost: mppi_control.costs.mountain_car_continuous.MountainCarContinuousCost
+
+study:
+  question: Can moderate correlation achieve comparable behavior with fewer samples?
+  hypothesis: At fixed K, rho 0.8 increases useful-trajectory fraction and task success over IID noise.
+  independent_variables:
+    mppi.noise_rho: [0.0, 0.8]
+    mppi.num_samples: [32, 64, 128, 256, 512]
+  fixed_from_base_config:
+    - environment
+    - model
+    - cost
+    - mppi.horizon
+    - mppi.temperature
+    - mppi.noise_sigma
+    - mppi.num_iterations
+  useful_trajectory_rule:
+    metric: maximum_absolute_velocity_within_horizon
+    operator: greater_than_or_equal
+    threshold: 0.04
+  pilot_repetitions: 5
+  final_repetitions: 30
+
+metrics:
+  primary: [useful_trajectory_fraction, success_rate]
+  secondary: [return, episode_length, peak_velocity, planning_time_ms]
+
+implementation_needs:
+  - reuse Experiment 05 AR(1) sampler and diagnostics
+  - paired closed-loop evaluation and aggregation
+
+artifacts:
+  results: results/runs.csv
+  summary: results/summary.json
+  plots: plots/
+  media: media/

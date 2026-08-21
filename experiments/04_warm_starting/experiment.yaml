@@ -1,0 +1,43 @@
+id: 04_warm_starting
+title: Warm-starting - preserving optimization across MPC cycles
+status: planned
+source_section: "1.4"
+
+environment:
+  id: Reacher-v5
+  base_config: ../../configs/reacher.yaml
+  reuse:
+    dynamics: mppi_control.dynamics.reacher_mujoco.ReacherMujocoDynamics
+    cost: mppi_control.costs.reacher.ReacherCost
+
+study:
+  question: Does the shifted nominal retain useful planning information at the next state?
+  hypothesis: Shifted nominal cost is usually below zero-nominal cost, especially for small K.
+  independent_variables:
+    warm_start: [true, false]
+    mppi.num_samples: [64, 128, 256]
+  fixed_from_base_config:
+    - environment
+    - model
+    - cost
+    - mppi.horizon
+    - mppi.temperature
+    - mppi.noise_sigma
+    - mppi.num_iterations
+    - mppi.sampling_correction
+  pilot_repetitions: 3
+  final_repetitions: 10
+
+metrics:
+  primary: [warm_nominal_cost, cold_nominal_cost, paired_cost_difference]
+  secondary: [success, first_success_step, minimum_distance, return, planning_time_ms, effective_sample_size]
+
+implementation_needs:
+  - paired nominal-sequence evaluation from one state
+  - explicit warm-start and cold-start controller policies
+
+artifacts:
+  results: results/runs.csv
+  summary: results/summary.json
+  plots: plots/
+  media: media/
