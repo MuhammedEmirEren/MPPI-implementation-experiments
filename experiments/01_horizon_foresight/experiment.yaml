@@ -1,6 +1,6 @@
 id: 01_horizon_foresight
 title: Planning horizon - foresight versus search difficulty
-status: planned
+status: pilot_complete
 source_section: "1.1"
 
 environment:
@@ -9,7 +9,7 @@ environment:
   initial_state: [-0.5, 0.0]
   reuse:
     dynamics: mppi_control.dynamics.mountain_car_continuous.MountainCarContinuousDynamics
-    cost: planned terminal-foresight Mountain Car cost mode
+    cost: ./cost.py:MountainCarHorizonCost
 
 study:
   question: Can a longer horizon make an initially undesirable leftward action useful now?
@@ -34,12 +34,12 @@ metrics:
   primary: [first_action, best_trajectory_reverses, any_candidate_reaches_goal]
   secondary: [planning_time_ms, best_trajectory_position, best_trajectory_velocity]
 
-implementation_needs:
-  - terminal-foresight Mountain Car cost
-  - candidate trajectory and goal-hit diagnostics
+implementation_needs: []
 
 artifacts:
-  results: results/runs.csv
-  summary: results/summary.json
-  plots: plots/
-  media: media/
+  plot: plots/horizon_sweep.png
+  recordings:
+    - media/best_candidate_h010_seed000.gif
+    - media/best_candidate_h050_seed000.gif
+    - media/best_candidate_h100_seed000.gif
+    - media/best_candidate_h200_seed000.gif

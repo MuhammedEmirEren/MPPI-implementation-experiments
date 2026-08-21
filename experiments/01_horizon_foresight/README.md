@@ -1,46 +1,71 @@
-# Experiment 01: Planning horizon and foresight
+# Experiment 01: Planning Horizon and Foresight
 
-**Status:** planned  
-**Environment:** `MountainCarContinuous-v0`  
-**Source section:** 1.1
+## Experiment
 
-## Question and hypothesis
+This experiment asks whether increasing MPPI's planning horizon can change the
+action selected now.
 
-Can a longer planning horizon change the action selected now when the useful
-strategy begins by moving away from the goal? Starting from approximately
-`position=-0.5, velocity=0`, the prediction is that short horizons favor local
-progress, while a sufficiently long horizon can value the left-build-reverse
-maneuver and select an initially leftward action.
+Mountain Car must often move left, away from the goal, before reversing and
+using the accumulated momentum to climb the right hill. A short horizon may
+see only the immediate increase in distance and therefore prefer a positive
+action. A longer horizon may see enough of the maneuver to prefer an initially
+negative action.
 
-## Design
+The experiment starts from `position=-0.5, velocity=0` and compares
+`H = [10, 25, 50, 75, 100, 150, 200]`. All other MPPI parameters remain fixed:
+`K=8192`, `lambda=1`, `sigma=0.5`, and one update from a zero nominal plan.
+Three paired sampling seeds are used.
 
-Sweep `H = [10, 25, 50, 75, 100, 150, 200]` while fixing `K=8192`,
-`lambda=1`, `sigma=0.5`, one MPPI iteration, the initial state, and all random
-seed sets. Use the document's terminal-foresight objective, with no energy or
-momentum shaping. Repeat across sampling seeds so a sign change in the mean
-first action is not confused with one lucky candidate population.
+The cost contains terminal distance, a terminal wrong-direction penalty,
+action effort, and a success bonus. It deliberately contains no energy or
+momentum shaping, so momentum-building behavior must become useful through the
+planning horizon itself.
 
-Record the first optimized action, whether the best predicted trajectory first
-moves left and later reverses, whether any candidate reaches the goal within
-the horizon, the best trajectory's state/action trace, and planning time.
+## Results
 
-## Planned evidence
+![Planning-horizon results](plots/horizon_sweep.png)
 
-The primary plot will show first-action distributions versus horizon and mark
-the fraction of trials containing a goal-reaching sample. A second plot will
-overlay the best predicted position trajectories. A representative Mountain
-Car GIF is useful only after selecting horizons from the quantitative result.
+- `H=10` and `H=25` selected positive first actions, as expected from the
+  short-term distance objective.
+- `H=50` selected a negative first action. Its lowest-cost trajectory first
+  moved left and then reversed toward the goal.
+- The change was not monotonic. The mean action became positive or nearly zero
+  again at `H=75`, `H=100`, and `H=150`, then became negative at `H=200`.
+- No sampled trajectory reached the goal at any tested horizon. The action
+  changes therefore came from differences in terminal-state quality rather
+  than from the success bonus.
+- Longer horizons were harder to search. Mean effective sample size fell from
+  about `6509` at `H=10` to `56` at `H=200`.
+- Mean planning time increased from about `17 ms` at `H=10` to `353 ms` at
+  `H=200`.
 
-If longer horizons still fail to produce the maneuver and no candidate reaches
-the goal, the result indicates inadequate sampling coverage rather than
-evidence against foresight.
+## Representative Trajectories
 
-## Implementation decision
+<table>
+  <tr>
+    <th>H=10: short-term movement</th>
+    <th>H=50: left-then-right maneuver</th>
+  </tr>
+  <tr>
+    <td><a href="media/best_candidate_h010_seed000.mp4"><img src="media/best_candidate_h010_seed000.gif" alt="Lowest-cost H=10 trajectory" width="360"></a></td>
+    <td><a href="media/best_candidate_h050_seed000.mp4"><img src="media/best_candidate_h050_seed000.gif" alt="Lowest-cost H=50 trajectory" width="360"></a></td>
+  </tr>
+</table>
 
-Reuse `MountainCarContinuousDynamics`. Add a shared terminal-foresight cost
-mode and a diagnostic rollout path that can retain candidate trajectories; do
-not copy the environment into this folder.
+<details>
+<summary>H=100 and H=200 recordings</summary>
 
-## Results and interpretation
+- `H=100`: [GIF](media/best_candidate_h100_seed000.gif) / [MP4](media/best_candidate_h100_seed000.mp4)
+- `H=200`: [GIF](media/best_candidate_h200_seed000.gif) / [MP4](media/best_candidate_h200_seed000.mp4)
 
-Pending implementation and data collection.
+</details>
+
+## Conclusion
+
+The pilot shows that the planning horizon can change MPPI's current action and
+can make an initial movement away from the goal desirable. However, more
+foresight did not produce a simple monotonic improvement. As the horizon grew,
+the search space became harder to sample, the effective sample size decreased,
+and no candidate completed the task. The experiment therefore demonstrates
+both sides of increasing the horizon: greater foresight and greater search
+difficulty.
