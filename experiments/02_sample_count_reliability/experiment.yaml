@@ -1,6 +1,6 @@
 id: 02_sample_count_reliability
 title: Number of samples - reliability of the Monte-Carlo update
-status: planned
+status: complete
 source_section: "1.2"
 
 environment:
@@ -31,11 +31,7 @@ metrics:
   primary: [first_action, first_action_std, absolute_reference_error]
   secondary: [planning_time_ms]
 
-implementation_needs:
-  - fixed-state repeated-planning runner
+implementation_needs: []
 
 artifacts:
-  results: results/runs.csv
-  summary: results/summary.json
-  plots: plots/
-  media: media/
+  plot: plots/sample_count_reliability.png

@@ -1,37 +1,50 @@
-# Experiment 02: Sample count and update reliability
+# Experiment 02: Number of Samples and Update Reliability
 
-**Status:** planned  
-**Environment:** `Pendulum-v1`  
-**Source section:** 1.2
+## Experiment
 
-## Question and hypothesis
+This experiment asks how the number of sampled trajectories, `K`, affects the
+reliability of one MPPI update.
 
-When the planning problem is held fixed, does increasing `K` make the first
-MPPI action more repeatable across sampling seeds? The prediction is that the
-standard deviation of `u0` and its error relative to a higher-sample reference
-will generally fall as `K` increases, while planning time rises and benefits
-eventually diminish.
-
-## Design
-
-Use the fixed state `theta=pi/2, theta_dot=0`, represented by the existing
-Pendulum observation convention as `[0, 1, 0]`. Reset the nominal action
-sequence to zero before every trial. Sweep
+The Pendulum planning problem is kept identical in every trial. The initial
+state is `theta=pi/2, theta_dot=0`, represented by `[0, 1, 0]`, and the nominal
+action sequence is reset to zero. The experiment compares
 `K = [16, 32, 64, 128, 256, 512, 1024, 2048]` with `H=40`, `lambda=1`, and
-`sigma=1`. Use separate MPPI sampling seeds with the identical state and
-nominal plan. Compute a paired `K_ref=3000` action for each seed where useful.
+`sigma=1`.
 
-## Planned evidence
+For each `K`, the same planning problem is solved using 30 sampling seeds. For
+a given seed, every larger population contains the samples used by the smaller
+population plus additional candidates. A paired `K=3000` solution is used as
+the higher-sample reference.
 
-Show the distribution of `u0` at each sample count, `Std(u0)` on a log sample
-axis, absolute reference error, and planning time. The main claim is about
-Monte-Carlo reliability, so a control animation is not required.
+If increasing `K` improves Monte Carlo coverage, the selected first action
+should vary less across seeds and move closer to the paired reference action.
 
-## Implementation decision
+## Results
 
-Reuse `PendulumDynamics`, `PendulumCost`, and `MPPIController.reset`. A small
-fixed-state runner is sufficient; no controller algorithm change is expected.
+![Sample-count reliability results](plots/sample_count_reliability.png)
 
-## Results and interpretation
+- The standard deviation of the first action decreased overall from `0.669`
+  at `K=16` to `0.259` at `K=2048`, a reduction of about 61%.
+- The decrease in variability was not perfectly monotonic. It reached `0.218`
+  at `K=256` and fluctuated slightly at larger sample counts.
+- Mean absolute error relative to the paired `K=3000` reference decreased at
+  every tested step, from `0.608` at `K=16` to `0.169` at `K=2048`.
+- The mean first action moved from `0.034` at `K=16` toward the reference mean
+  of `0.190`, reaching `0.196` at `K=2048`.
+- Planning time increased modestly from about `25 ms` at `K=16` to `36 ms` at
+  `K=2048`. For small populations, fixed Python and rollout overhead was large
+  relative to the sampling work.
+- Larger populations reduced sampling variability but did not eliminate it;
+  occasional outlying actions remained even at high `K`.
 
-Pending implementation and data collection.
+## Conclusion
+
+Increasing `K` made the MPPI update more reliable. The clearest evidence is
+the steady reduction in error relative to the paired higher-sample reference.
+Action variability also decreased substantially overall, although finite-seed
+fluctuations made the trend non-monotonic.
+
+The improvement showed diminishing returns: larger populations continued to
+help, but each increase required more computation for a progressively smaller
+gain in reliability. `K` therefore controls a tradeoff between Monte Carlo
+coverage and planning cost.
