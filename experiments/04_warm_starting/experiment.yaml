@@ -1,6 +1,6 @@
 id: 04_warm_starting
 title: Warm-starting - preserving optimization across MPC cycles
-status: planned
+status: complete
 source_section: "1.4"
 
 environment:
@@ -16,28 +16,21 @@ study:
   independent_variables:
     warm_start: [true, false]
     mppi.num_samples: [64, 128, 256]
-  fixed_from_base_config:
-    - environment
-    - model
-    - cost
-    - mppi.horizon
-    - mppi.temperature
-    - mppi.noise_sigma
-    - mppi.num_iterations
-    - mppi.sampling_correction
-  pilot_repetitions: 3
+  fixed:
+    episode_steps: 100
+    seeds: [7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+    mppi.horizon: 16
+    mppi.temperature: 1.0
+    mppi.noise_sigma: 0.16
+    mppi.num_iterations: 1
+    mppi.sampling_correction: true
   final_repetitions: 10
 
 metrics:
   primary: [warm_nominal_cost, cold_nominal_cost, paired_cost_difference]
-  secondary: [success, first_success_step, minimum_distance, return, planning_time_ms, effective_sample_size]
+  secondary: [success, minimum_distance, mean_distance, return, planning_time_ms]
 
-implementation_needs:
-  - paired nominal-sequence evaluation from one state
-  - explicit warm-start and cold-start controller policies
+implementation_needs: []
 
 artifacts:
-  results: results/runs.csv
-  summary: results/summary.json
-  plots: plots/
-  media: media/
+  plot: plots/warm_starting.png
