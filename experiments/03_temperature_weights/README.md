@@ -1,37 +1,43 @@
-# Experiment 03: Temperature and weight concentration
+# Experiment 03: Temperature and Weight Concentration
 
-**Status:** planned  
-**Environment:** `Pendulum-v1`  
-**Source section:** 1.3
+## Experiment
 
-## Question and hypothesis
+This experiment isolates how the MPPI temperature, `lambda`, changes the
+selection of sampled trajectories.
 
-If candidate trajectories and their costs are frozen, how does temperature
-alone change MPPI selection? Lower `lambda` should concentrate mass on a few
-low-cost samples (`max weight` up, ESS down); higher `lambda` should spread
-weight more evenly and approach ESS `K`.
+One Pendulum candidate population is generated from the initial state
+`theta=pi/2, theta_dot=0`, represented by `[0, 1, 0]`. It contains `K=1024`
+trajectories with `H=40`, a zero nominal action sequence, and `sigma=1`.
+The resulting costs are frozen and reused for
+`lambda = [0.05, 0.1, 0.3, 1, 3, 10, 30]`; no trajectories are regenerated.
 
-## Design
+For each temperature, the normalized MPPI weights are computed as
+`w_k proportional to exp(-(S_k - S_min) / lambda)`. Selection concentration
+is measured using the largest weight and the effective sample size,
+`ESS = 1 / sum(w_k^2)`. ESS ranges from `1` when one candidate dominates to
+`K` when all candidates have equal weight.
 
-Generate one Pendulum candidate batch with `K=1024` and save the resulting cost
-vector once. Reuse that exact vector for
-`lambda = [0.05, 0.1, 0.3, 1, 3, 10, 30]`; do not resample trajectories. Save
-the cost-batch identifier in every derived row so the frozen-population claim
-is auditable.
+## Results
 
-## Planned evidence
+![Temperature and weight-concentration results](plots/temperature_weights.png)
 
-Plot maximum weight and normalized ESS (`ESS/K`) against temperature. A second
-figure can show sorted weight curves for a few temperatures. Exact checks
-should confirm nonnegative normalized weights and the approach to uniform
-weighting at high temperature. A GIF would add little here.
+- At `lambda=0.05`, the best trajectory received `0.997` of the total weight
+  and ESS was `1.01`. The update was effectively determined by one sample.
+- At `lambda=0.3`, the largest weight fell to `0.360` and ESS increased to
+  `5.63`, so selection remained highly concentrated.
+- At `lambda=1`, the largest weight was `0.0412` and ESS was `97.2`.
+- At `lambda=3`, ESS increased to `522`, approximately half of the population.
+- At `lambda=30`, the largest weight was `0.00124`, close to the uniform value
+  `1/K = 0.000977`, and ESS reached `1007` out of `1024` (`98.3%`).
+- Maximum weight decreased and ESS increased at every tested temperature.
 
-## Implementation decision
+## Conclusion
 
-Reuse the existing Pendulum rollout to obtain costs. Put a public, stateless
-weight/ESS helper in shared code rather than changing a controller's private
-temperature repeatedly.
+Temperature controls how aggressively MPPI selects among trajectories that
+have already been sampled. Low temperature behaves almost like choosing the
+single lowest-cost candidate, while high temperature averages information
+from most of the population.
 
-## Results and interpretation
-
-Pending implementation and data collection.
+This role is different from `sigma`: `sigma` controls where candidate actions
+are sampled, whereas `lambda` controls how strongly their costs influence the
+update after sampling.
