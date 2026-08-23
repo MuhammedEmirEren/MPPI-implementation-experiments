@@ -1,6 +1,6 @@
 id: 05_correlated_noise_structure
 title: IID versus temporally correlated action noise
-status: planned
+status: complete
 source_section: "2.1"
 
 environment:
@@ -16,29 +16,23 @@ study:
   hypothesis: Higher rho reduces direction changes and produces more momentum-building trajectories.
   independent_variables:
     mppi.noise_rho: [0.0, 0.5, 0.8, 0.95]
-  fixed_from_base_config:
-    - environment
-    - model
-    - cost
-    - mppi.horizon
-    - mppi.num_samples
-    - mppi.temperature
-    - mppi.noise_sigma
-    - mppi.num_iterations
+  fixed:
+    initial_state: [-0.5, 0.0]
+    innovation_seeds: [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26]
+    nominal_actions: zero
+    mppi.horizon: 100
+    mppi.num_samples: 1024
+    mppi.temperature: 1.0
+    mppi.noise_sigma: 0.5
+    mppi.num_iterations: 1
   paired_common_innovations: true
-  pilot_repetitions: 5
   final_repetitions: 20
 
 metrics:
   primary: [direction_changes, mean_action_run_length, lag_one_correlation, maximum_absolute_velocity]
   secondary: [peak_energy, marginal_noise_standard_deviation]
 
-implementation_needs:
-  - backward-compatible AR(1) perturbation sampler
-  - candidate action and state diagnostic export
+implementation_needs: []
 
 artifacts:
-  results: results/runs.csv
-  summary: results/summary.json
-  plots: plots/
-  media: media/
+  plot: plots/correlated_noise_structure.png
