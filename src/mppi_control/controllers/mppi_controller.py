@@ -35,9 +35,10 @@ class MPPIController:
     supplied model and cost, and updates the nominal sequence with an
     exponentially cost-weighted average of the perturbations.
 
-    This implementation uses a scalar standard deviation shared by all
-    action dimensions. Pendulum-v1 has one action dimension, but the tensor
-    operations also support vector actions when vector bounds are supplied.
+    This implementation uses a scalar marginal standard deviation and AR(1)
+    temporal correlation shared by all action dimensions. Pendulum-v1 has one
+    action dimension, but the tensor operations also support vector actions
+    when vector bounds are supplied.
     """
 
     def __init__(
@@ -51,6 +52,7 @@ class MPPIController:
         noise_sigma: float,
         action_low: float | NDArray[np.floating] | Tensor,
         action_high: float | NDArray[np.floating] | Tensor,
+        noise_rho: float = 0.0,
         device: str | torch.device = "cpu",
         dtype: torch.dtype = torch.float32,
         num_iterations: int = 1,
@@ -67,6 +69,8 @@ class MPPIController:
             temperature: Positive MPPI temperature lambda. Smaller values
                 concentrate weight on fewer low-cost samples.
             noise_sigma: Positive standard deviation of Gaussian action noise.
+            noise_rho: Lag-one AR(1) correlation of action noise. Zero keeps
+                perturbations independent across planning timesteps.
             action_low: Scalar or vector lower action bound.
             action_high: Scalar or vector upper action bound.
             device: PyTorch device used for planning.
@@ -82,6 +86,7 @@ class MPPIController:
             num_samples=num_samples,
             temperature=temperature,
             noise_sigma=noise_sigma,
+            noise_rho=noise_rho,
             num_iterations=num_iterations,
         )
 
@@ -94,6 +99,7 @@ class MPPIController:
         self.num_samples = num_samples
         self.temperature = float(temperature)
         self.noise_sigma = float(noise_sigma)
+        self.noise_rho = float(noise_rho)
         self.num_iterations = num_iterations
         self.sampling_correction = sampling_correction
         self.device = torch.device(device)
@@ -205,14 +211,28 @@ class MPPIController:
         return float(self.last_weights.square().sum().reciprocal().item())
 
     def _sample_perturbations(self) -> Tensor:
-        """Sample independent Gaussian perturbation sequences."""
+        """Sample stationary Gaussian AR(1) perturbation sequences."""
 
-        return self.noise_sigma * torch.randn(
+        innovations = torch.randn(
             (self.num_samples, self.horizon, self.action_dim),
             device=self.device,
             dtype=self.dtype,
             generator=self._generator,
         )
+        if self.noise_rho == 0.0:
+            return self.noise_sigma * innovations
+
+        perturbations = torch.empty_like(innovations)
+        perturbations[:, 0] = self.noise_sigma * innovations[:, 0]
+        innovation_scale = self.noise_sigma * np.sqrt(
+            1.0 - self.noise_rho**2
+        )
+        for time_step in range(1, self.horizon):
+            perturbations[:, time_step] = (
+                self.noise_rho * perturbations[:, time_step - 1]
+                + innovation_scale * innovations[:, time_step]
+            )
+        return perturbations
 
     def _build_candidates(self, perturbations: Tensor) -> tuple[Tensor, Tensor]:
         """Add perturbations to the plan and enforce action limits."""
@@ -239,14 +259,32 @@ class MPPIController:
     def _sampling_cross_term(self, perturbations: Tensor) -> Tensor:
         """Return the fixed-covariance importance-sampling correction.
 
-        For covariance Sigma = noise_sigma**2 * I, the sample-dependent term
-        is lambda * sum_t(u_t^T Sigma^-1 epsilon_t).
+        The sample-dependent term is
+        lambda * sum_t(u_t^T Sigma^-1 epsilon_t). For AR(1) noise, the
+        temporal precision matrix is tridiagonal.
         """
+
+        precision_times_perturbations = perturbations
+        if self.noise_rho != 0.0 and self.horizon > 1:
+            rho = self.noise_rho
+            precision_times_perturbations = torch.empty_like(perturbations)
+            precision_times_perturbations[:, 0] = (
+                perturbations[:, 0] - rho * perturbations[:, 1]
+            )
+            precision_times_perturbations[:, -1] = (
+                perturbations[:, -1] - rho * perturbations[:, -2]
+            )
+            if self.horizon > 2:
+                precision_times_perturbations[:, 1:-1] = (
+                    (1.0 + rho**2) * perturbations[:, 1:-1]
+                    - rho * (perturbations[:, :-2] + perturbations[:, 2:])
+                )
+            precision_times_perturbations /= 1.0 - rho**2
 
         inverse_variance = 1.0 / (self.noise_sigma**2)
         return self.temperature * torch.sum(
             self._nominal_actions.unsqueeze(0)
-            * perturbations
+            * precision_times_perturbations
             * inverse_variance,
             dim=(1, 2),
         )
@@ -331,6 +369,7 @@ class MPPIController:
         num_samples: int,
         temperature: float,
         noise_sigma: float,
+        noise_rho: float,
         num_iterations: int,
     ) -> None:
         integer_parameters = {
@@ -348,3 +387,6 @@ class MPPIController:
 
         if not np.isfinite(noise_sigma) or noise_sigma <= 0:
             raise ValueError("noise_sigma must be positive and finite")
+
+        if not np.isfinite(noise_rho) or not -1.0 < noise_rho < 1.0:
+            raise ValueError("noise_rho must be finite and lie between -1 and 1")

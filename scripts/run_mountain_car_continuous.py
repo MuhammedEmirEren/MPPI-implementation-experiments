@@ -194,6 +194,7 @@ def build_controller(
         num_samples=int(mppi_config["num_samples"]),
         temperature=float(mppi_config["temperature"]),
         noise_sigma=float(mppi_config["noise_sigma"]),
+        noise_rho=float(mppi_config.get("noise_rho", 0.0)),
         action_low=env.action_space.low,
         action_high=env.action_space.high,
         device=device,

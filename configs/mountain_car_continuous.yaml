@@ -29,5 +29,6 @@ mppi:
   num_samples: 1024
   temperature: 1.0
   noise_sigma: 0.5
+  noise_rho: 0.0
   num_iterations: 1
   sampling_correction: true

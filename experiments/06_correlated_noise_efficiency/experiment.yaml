@@ -1,6 +1,6 @@
 id: 06_correlated_noise_efficiency
 title: Sampling efficiency from temporally correlated noise
-status: planned
+status: complete
 source_section: "2.2"
 
 environment:
@@ -16,31 +16,28 @@ study:
   independent_variables:
     mppi.noise_rho: [0.0, 0.8]
     mppi.num_samples: [32, 64, 128, 256, 512]
-  fixed_from_base_config:
-    - environment
-    - model
-    - cost
-    - mppi.horizon
-    - mppi.temperature
-    - mppi.noise_sigma
-    - mppi.num_iterations
+  fixed:
+    initial_state: [-0.5, 0.0]
+    episode_step_budget: 150
+    seeds: [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36]
+    nominal_policy: warm_start
+    mppi.horizon: 100
+    mppi.temperature: 1.0
+    mppi.noise_sigma: 0.5
+    mppi.num_iterations: 1
+    mppi.sampling_correction: covariance_matched
   useful_trajectory_rule:
     metric: maximum_absolute_velocity_within_horizon
     operator: greater_than_or_equal
     threshold: 0.04
-  pilot_repetitions: 5
+  pilot_repetitions: 1
   final_repetitions: 30
 
 metrics:
-  primary: [useful_trajectory_fraction, success_rate]
-  secondary: [return, episode_length, peak_velocity, planning_time_ms]
+  primary: [useful_trajectory_fraction, population_coverage, success_rate]
+  secondary: [return, episode_length, peak_velocity]
 
-implementation_needs:
-  - reuse Experiment 05 AR(1) sampler and diagnostics
-  - paired closed-loop evaluation and aggregation
+implementation_needs: []
 
 artifacts:
-  results: results/runs.csv
-  summary: results/summary.json
-  plots: plots/
-  media: media/
+  plot: plots/correlated_noise_efficiency.png

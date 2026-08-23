@@ -7,7 +7,11 @@ from mppi_control.costs.pendulum import PendulumCost
 from mppi_control.dynamics.pendulum import PendulumDynamics
 
 
-def make_controller(*, seed: int = 7) -> MPPIController:
+def make_controller(
+    *,
+    seed: int = 7,
+    noise_rho: float = 0.0,
+) -> MPPIController:
     return MPPIController(
         PendulumDynamics(),
         PendulumCost(terminal_weight=2.0),
@@ -15,6 +19,7 @@ def make_controller(*, seed: int = 7) -> MPPIController:
         num_samples=64,
         temperature=1.0,
         noise_sigma=0.8,
+        noise_rho=noise_rho,
         action_low=-2.0,
         action_high=2.0,
         seed=seed,
@@ -72,6 +77,71 @@ def test_lower_cost_receives_larger_weight() -> None:
     assert torch.isclose(weights.sum(), torch.tensor(1.0))
 
 
+def test_correlated_noise_has_stationary_scale_and_requested_correlation() -> None:
+    controller = MPPIController(
+        PendulumDynamics(),
+        PendulumCost(),
+        horizon=64,
+        num_samples=1024,
+        temperature=1.0,
+        noise_sigma=0.8,
+        noise_rho=0.7,
+        action_low=-2.0,
+        action_high=2.0,
+        seed=13,
+    )
+
+    perturbations = controller._sample_perturbations()[..., 0]
+    previous = perturbations[:, :-1].reshape(-1)
+    following = perturbations[:, 1:].reshape(-1)
+    observed_correlation = torch.corrcoef(
+        torch.stack((previous, following))
+    )[0, 1]
+
+    assert float(perturbations.std()) == pytest.approx(0.8, abs=0.02)
+    assert float(observed_correlation) == pytest.approx(0.7, abs=0.02)
+
+
+def test_correlated_sampling_cross_term_uses_ar1_precision() -> None:
+    controller = MPPIController(
+        PendulumDynamics(),
+        PendulumCost(),
+        horizon=4,
+        num_samples=2,
+        temperature=1.3,
+        noise_sigma=0.8,
+        noise_rho=0.6,
+        action_low=-2.0,
+        action_high=2.0,
+    )
+    controller._nominal_actions.copy_(
+        torch.tensor([[0.2], [-0.1], [0.4], [0.3]])
+    )
+    perturbations = torch.tensor(
+        [
+            [[0.3], [-0.2], [0.1], [0.5]],
+            [[-0.4], [0.2], [0.6], [-0.1]],
+        ]
+    )
+
+    indices = torch.arange(controller.horizon)
+    correlation = controller.noise_rho ** torch.abs(
+        indices[:, None] - indices[None, :]
+    )
+    covariance = controller.noise_sigma**2 * correlation
+    expected = controller.temperature * torch.einsum(
+        "ha,ht,kta->k",
+        controller.nominal_actions,
+        torch.linalg.inv(covariance),
+        perturbations,
+    )
+
+    torch.testing.assert_close(
+        controller._sampling_cross_term(perturbations),
+        expected,
+    )
+
+
 def test_invalid_hyperparameters_are_rejected() -> None:
     with pytest.raises(ValueError, match="temperature"):
         MPPIController(
@@ -81,6 +151,19 @@ def test_invalid_hyperparameters_are_rejected() -> None:
             num_samples=64,
             temperature=0.0,
             noise_sigma=1.0,
+            action_low=-2.0,
+            action_high=2.0,
+        )
+
+    with pytest.raises(ValueError, match="noise_rho"):
+        MPPIController(
+            PendulumDynamics(),
+            PendulumCost(),
+            horizon=8,
+            num_samples=64,
+            temperature=1.0,
+            noise_sigma=1.0,
+            noise_rho=1.0,
             action_low=-2.0,
             action_high=2.0,
         )
