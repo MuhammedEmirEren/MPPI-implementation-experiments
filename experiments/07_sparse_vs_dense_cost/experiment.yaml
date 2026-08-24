@@ -1,6 +1,6 @@
 id: 07_sparse_vs_dense_cost
 title: Sparse versus dense cost - information for ranking samples
-status: planned
+status: complete
 source_section: "3.1"
 
 environment:
@@ -10,7 +10,7 @@ environment:
   reuse:
     dynamics: mppi_control.dynamics.mountain_car_continuous.MountainCarContinuousDynamics
     dense_cost: mppi_control.costs.mountain_car_continuous.MountainCarContinuousCost
-    sparse_cost: planned sparse success-only Mountain Car cost
+    sparse_cost: experiments/07_sparse_vs_dense_cost/sparse_cost.py
 
 study:
   question: Does a dense cost provide useful ranking before any sample succeeds?
@@ -20,24 +20,27 @@ study:
   fixed_from_base_config:
     - environment
     - model
-    - mppi
+  fixed:
+    initial_state: [-0.5, 0.0]
+    nominal_plan: zero
+    mppi.horizon: 100
+    mppi.num_samples: 1024
+    mppi.temperature: 1.0
+    mppi.noise_sigma: 0.5
+    mppi.noise_rho: 0.8
+    seeds: [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36]
   sparse_cost:
     action_weight: 0.05
     success_bonus: 100.0
   paired_perturbation_seeds: true
-  pilot_repetitions: 5
-  final_repetitions: 20
+  final_repetitions: 30
 
 metrics:
-  primary: [trajectory_cost_standard_deviation, effective_sample_size, first_action, maximum_absolute_velocity]
-  secondary: [maximum_weight, near_tied_cost_fraction, success, planning_time_ms]
+  primary: [trajectory_cost_standard_deviation, effective_sample_size, top_momentum_decile_weight, updated_plan_peak_velocity]
+  secondary: [cost_momentum_spearman, maximum_weight, candidate_goal_fraction]
 
-implementation_needs:
-  - sparse success-only Mountain Car cost
-  - shared candidate-cost and state diagnostics from Experiment 01
+implementation_needs: []
 
 artifacts:
-  results: results/runs.csv
-  summary: results/summary.json
-  plots: plots/
-  media: media/
+  cost: sparse_cost.py
+  plot: plots/sparse_vs_dense_cost.png
