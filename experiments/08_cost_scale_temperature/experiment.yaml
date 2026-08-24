@@ -1,13 +1,13 @@
 id: 08_cost_scale_temperature
 title: Cost scale and temperature
-status: planned
+status: complete
 source_section: "3.2"
 
 environment:
   id: Pendulum-v1
   base_config: ../../configs/pendulum.yaml
   reuse:
-    frozen_costs_from: ../03_temperature_weights/results/costs.npz
+    frozen_costs_from: deterministic reconstruction of Experiment 03 seed and configuration
 
 study:
   question: How does common cost scaling interact with temperature?
@@ -23,20 +23,23 @@ study:
       cost_scale: 10.0
       temperature_scale: 10.0
   fixed:
-    candidate_cost_batch: exactly the same saved vector for all cases
+    candidate_cost_batch: exactly the same vector for all cases
+    initial_observation: [0.0, 1.0, 0.0]
+    seed: 7
+    mppi.num_samples: 1024
+    mppi.horizon: 40
+    mppi.noise_sigma: 1.0
+    nominal_actions: zero
+    base_temperature: 1.0
   numerical_tolerance: 1.0e-6
   pilot_repetitions: 1
   final_repetitions: 1
 
 metrics:
   primary: [maximum_weight, effective_sample_size, maximum_absolute_weight_difference]
-  secondary: [weight_entropy]
+  secondary: []
 
-implementation_needs:
-  - reuse Experiment 03 frozen costs and weighting helper
+implementation_needs: []
 
 artifacts:
-  results: results/runs.csv
-  summary: results/summary.json
-  plots: plots/
-  media: media/
+  plot: plots/cost_scale_temperature.png

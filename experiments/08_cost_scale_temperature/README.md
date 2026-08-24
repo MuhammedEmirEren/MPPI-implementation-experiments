@@ -1,35 +1,42 @@
-# Experiment 08: Cost scale and temperature
+# Experiment 08: Cost Scale and Temperature
 
-**Status:** planned  
-**Environment:** `Pendulum-v1`  
-**Source section:** 3.2
+## Experiment
 
-## Question and hypothesis
+This experiment asks whether multiplying every trajectory cost by the same
+positive constant changes MPPI when the trajectory ordering stays unchanged.
+Weights depend on the ratio `S/lambda`, so cost scale and temperature must be
+considered together.
 
-Does multiplying every cost by a positive constant leave MPPI behavior
-unchanged when temperature is fixed? Although trajectory ordering is
-unchanged, weights depend on `S/lambda`. Scaling costs by ten alone should
-concentrate weights; scaling both costs and temperature by ten should recover
-the original weights to numerical precision.
+Experiment 03's Pendulum candidate-cost vector was reconstructed exactly from
+its documented fixed setup: `seed=7`, `K=1024`, `H=40`, `sigma=1`, a zero
+nominal plan, and initial observation `[0, 1, 0]`. The reconstruction reproduces
+Experiment 03's `lambda=1` maximum weight and ESS. This one cost vector is then
+reused without generating new trajectories for:
 
-## Design
+- `(S, lambda)`;
+- `(10S, lambda)`;
+- `(10S, 10lambda)`.
 
-Reuse one exact frozen cost vector from Experiment 03. Compare `(S, lambda)`,
-`(10*S, lambda)`, and `(10*S, 10*lambda)` without regenerating trajectories.
-Record maximum weight, ESS, and the maximum absolute difference from the
-original weight vector.
+## Results
 
-## Planned evidence
+![Cost-scale and temperature results](plots/cost_scale_temperature.png)
 
-A three-case weight-distribution plot and a compact metrics table are enough.
-The invariant case should have a strict numerical check, initially
-`max_abs_weight_difference <= 1e-6` for float32. No animation is needed.
+- In the original `(S, lambda)` case, maximum weight was `0.04121` and ESS was
+  `97.19 / 1024`.
+- Scaling only the costs to `(10S, lambda)` raised maximum weight to `0.90766`
+  and reduced ESS to `1.21`. Although candidate ordering did not change, the
+  update became almost a single-sample selection.
+- Scaling both quantities to `(10S, 10lambda)` recovered maximum weight
+  `0.04121` and ESS `97.19`.
+- The largest absolute difference between any original and recovered weight
+  was `3.73e-7`, below the predefined float32 tolerance of `1e-6`.
 
-## Implementation decision
+## Conclusion
 
-Reuse Experiment 03's frozen-batch format and stateless weighting helper. This
-experiment should contain no environment or controller modifications.
+The numerical scale of a cost function changes MPPI's behavior when
+temperature is held fixed. Multiplying costs by ten is equivalent to making
+selection ten times more aggressive.
 
-## Results and interpretation
-
-Pending implementation and data collection.
+When costs and temperature are scaled together, their ratio is preserved and
+the original weights return up to floating-point precision. Therefore,
+`lambda` is meaningful only relative to the scale of the trajectory costs.
